@@ -1,0 +1,5 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 1000" width="800" height="1000" preserveAspectRatio="xMidYMid slice">
+<rect x="-1000" y="-1000" width="3000" height="3000" fill="#ECEBE4"/>
+<ellipse cx="400" cy="850" rx="230" ry="18" fill="#000" opacity="0.07"/><path d="M250 262 L330 232 Q400 266 470 232 L550 262 L664 344 L612 436 L560 404 L560 784 L240 784 L240 404 L188 436 L136 344 Z" fill="#F2F1EC"/><path d="M330 232 Q400 300 470 232" stroke="#b2b1ac" stroke-width="2" fill="none"/><text x="400" y="372" font-family="Georgia, serif" font-size="26" letter-spacing="10" fill="#20261C" text-anchor="middle" opacity="0.9">SERAFIM</text>
+        <path d="M188 436 L240 404 M612 436 L560 404" stroke="#b2b1ac" stroke-width="2" fill="none" opacity="0.5"/>
+</svg>

@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="220 330 360 450" width="800" height="1000" preserveAspectRatio="xMidYMid slice">
+<rect x="-1000" y="-1000" width="3000" height="3000" fill="#ECEBE4"/>
+<ellipse cx="400" cy="680" rx="230" ry="18" fill="#000" opacity="0.07"/><path d="M240 560 Q240 340 400 330 Q560 340 560 560 Z" fill="#1B1C1A"/>
+           <path d="M400 332 L400 560 M320 345 Q300 450 310 560 M480 345 Q500 450 490 560" stroke="#3a3b39" stroke-width="2" fill="none" opacity="0.5"/>
+           <path d="M220 560 Q400 520 580 560 Q600 640 400 650 Q200 640 220 560 Z" fill="#000000"/>
+           <circle cx="400" cy="332" r="9" fill="#000000"/>
+           <text x="400" y="480" font-family="Georgia, serif" font-size="30" letter-spacing="10" fill="#F1EEE4" text-anchor="middle">SERAFIM</text>
+</svg>
