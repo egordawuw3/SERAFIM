@@ -1,0 +1,7 @@
+node_modules/
+data/
+.env
+public/uploads/
+public/css/styles.css
+*.log
+.DS_Store
