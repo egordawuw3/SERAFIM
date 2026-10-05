@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react'
 import { MOCKUP_DISCLAIMER } from '@/entities/product/model/catalog'
-import { findColor, firstAvailableSize, isSizeAvailable } from '@/entities/product/lib/availability'
-import type { Product, Size } from '@/entities/product/model/types'
+import { useSearchParams } from 'react-router'
+import { useProductSelection } from '@/entities/product/lib/useProductSelection'
+import type { Product } from '@/entities/product/model/types'
+import { ColorSelect } from '@/entities/product/ui/ColorSelect'
 import { SizeSelect } from '@/entities/product/ui/SizeSelect'
 import { toCartItem } from '@/features/cart/lib/toCartItem'
 import { useCart } from '@/features/cart/model/store'
 import { formatPrice } from '@/shared/lib/format'
 import { PillButton } from '@/shared/ui/PillButton'
-import { Select } from '@/shared/ui/Select'
 import { ProductGallery } from './ProductGallery'
 
 export function ProductView({ product }: { product: Product }) {
   const add = useCart((s) => s.add)
-  const [colorId, setColorId] = useState(product.colors[0].id)
-  const color = findColor(product, colorId)
-  const [size, setSize] = useState<Size | undefined>(() => firstAvailableSize(product, color))
+  const [params] = useSearchParams()
+  const { color, size, selectColor, selectSize } = useProductSelection(product, params.get('color') ?? undefined)
   const [added, setAdded] = useState(false)
 
   useEffect(() => {
@@ -22,12 +22,6 @@ export function ProductView({ product }: { product: Product }) {
     const t = setTimeout(() => setAdded(false), 1800)
     return () => clearTimeout(t)
   }, [added])
-
-  const changeColor = (id: string) => {
-    const next = findColor(product, id)
-    setColorId(next.id)
-    if (!size || !isSizeAvailable(next, size)) setSize(firstAvailableSize(product, next))
-  }
 
   const images = product.sizeChart ? [...color.images, product.sizeChart] : color.images
 
@@ -42,13 +36,8 @@ export function ProductView({ product }: { product: Product }) {
         <p className="mt-6 text-[13px]">{formatPrice(product.price)}</p>
 
         <div className="mt-2 flex w-36 flex-col gap-1.5">
-          <SizeSelect product={product} color={color} value={size} onChange={setSize} />
-          <Select
-            label="Цвет"
-            value={color.id}
-            onChange={changeColor}
-            options={product.colors.map((c) => ({ value: c.id, label: c.name }))}
-          />
+          <SizeSelect product={product} color={color} value={size} onChange={selectSize} />
+          <ColorSelect product={product} value={color} onChange={selectColor} />
         </div>
 
         <PillButton

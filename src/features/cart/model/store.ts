@@ -1,5 +1,7 @@
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
+import { getProductById } from '@/entities/product/api/productApi'
+import { reconcileCart } from '../lib/reconcile'
 import { addItem, removeItem, setQty, type CartItem } from './cart'
 
 interface CartState {
@@ -30,6 +32,10 @@ export const useCart = create<CartState>()(
       version: 1,
       storage: createJSONStorage(() => localStorage),
       partialize: (s) => ({ items: s.items }),
+      merge: (persisted, current) => {
+        const items = (persisted as Partial<CartState> | undefined)?.items
+        return { ...current, items: Array.isArray(items) ? reconcileCart(items, getProductById) : [] }
+      },
     },
   ),
 )

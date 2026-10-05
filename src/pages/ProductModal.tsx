@@ -1,8 +1,9 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { getProductBySlug } from '@/entities/product/api/productApi'
 import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
 import { useEscape } from '@/shared/lib/useEscape'
+import { useFocusTrap } from '@/shared/lib/useFocusTrap'
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll'
 import { ArrowLeft, Close } from '@/shared/ui/icons'
 import { ProductView } from '@/widgets/ProductView'
@@ -14,13 +15,15 @@ export function ProductModal() {
   const product = getProductBySlug(slug)
   const close = useCallback(() => navigate(-1), [navigate])
   useDocumentTitle(product?.name)
+  const ref = useRef<HTMLDivElement>(null)
   useEscape(close)
   useLockBodyScroll()
+  useFocusTrap(ref)
 
   if (!product) return null
 
   return (
-    <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={product.name}>
+    <div ref={ref} className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={product.name}>
       <div className="absolute inset-0 animate-fade-in bg-[#0d1110]/70 backdrop-blur-sm" onClick={close} />
       <div className="absolute inset-2 animate-sheet-in overflow-y-auto overscroll-contain rounded-lg bg-white md:inset-3">
         <div className="sticky top-0 z-10 flex items-center justify-between bg-white/90 px-4 py-4 backdrop-blur md:px-6">

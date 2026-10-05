@@ -1,7 +1,7 @@
 import { useEffect } from 'react'
 import { useLocation } from 'react-router'
 
-/* Прокрутка вверх при переходе между страницами и к якорю (#philosophy) при его наличии. */
+/* Прокрутка вверх при переходе между страницами и к якорю (#about) при его наличии. */
 export function ScrollManager({ skip }: { skip: boolean }) {
   const { pathname, hash } = useLocation()
 

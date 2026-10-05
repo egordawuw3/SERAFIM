@@ -1,37 +1,45 @@
 import { Link, NavLink } from 'react-router'
-import { useCart } from '@/features/cart/model/store'
 import { countItems } from '@/features/cart/model/cart'
+import { useCart } from '@/features/cart/model/store'
 import { cn } from '@/shared/lib/cn'
+import { useScrolled } from '@/shared/lib/useScrolled'
 import { Logo } from '@/shared/ui/Logo'
 
-const navClass = ({ isActive }: { isActive: boolean }) =>
-  cn('link-hover transition-colors duration-300 hover:text-ink', isActive && 'text-ink')
+const linkCls = 'link-hover transition-colors duration-300 hover:text-ink'
 
 export function Header() {
   const count = useCart((s) => countItems(s.items))
   const openCart = useCart((s) => s.open)
+  const scrolled = useScrolled()
 
   return (
-    <header className="relative z-40 flex w-full items-center justify-between px-4 py-6 md:px-12 md:py-8">
-      <nav className="flex items-center gap-6 text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70 md:gap-10">
-        <NavLink to="/catalog" className={navClass}>
-          Каталог
-        </NavLink>
-        <Link to="/#philosophy" className="link-hover hidden transition-colors duration-300 hover:text-ink sm:inline">
-          О бренде
-        </Link>
-      </nav>
+    <header
+      className={cn(
+        'sticky top-0 z-40 w-full border-b transition-[background-color,border-color,padding] duration-500',
+        scrolled ? 'border-ink/10 bg-paper/85 py-4 backdrop-blur-md md:py-5' : 'border-transparent bg-paper py-6 md:py-8',
+      )}
+    >
+      <div className="relative flex items-center justify-between px-4 md:px-12">
+        <nav className="flex items-center gap-6 text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70 md:gap-10" aria-label="Основное меню">
+          <NavLink to="/catalog" className={({ isActive }) => cn(linkCls, isActive && 'text-ink')}>
+            Каталог
+          </NavLink>
+          <Link to="/#about" className={cn(linkCls, 'hidden sm:inline')}>
+            О бренде
+          </Link>
+        </nav>
 
-      <Logo className="absolute left-1/2 -translate-x-1/2 text-lg text-ink sm:text-xl md:text-3xl" />
+        <Logo className="absolute left-1/2 -translate-x-1/2 text-lg text-ink sm:text-xl md:text-3xl" />
 
-      <button
-        type="button"
-        onClick={openCart}
-        className="link-hover text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70 transition-colors duration-300 hover:text-ink"
-        aria-label={`Открыть корзину, товаров: ${count}`}
-      >
-        Корзина ({count})
-      </button>
+        <button
+          type="button"
+          onClick={openCart}
+          className={cn(linkCls, 'text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70')}
+          aria-label={`Открыть корзину, товаров: ${count}`}
+        >
+          Корзина ({count})
+        </button>
+      </div>
     </header>
   )
 }

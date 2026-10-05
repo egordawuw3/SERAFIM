@@ -42,4 +42,5 @@ export interface Product {
   details: string[]
   modelNotes?: string[]
   isPreorder?: boolean
+  isNew?: boolean
 }

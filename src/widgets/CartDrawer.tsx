@@ -1,9 +1,10 @@
-import { useCallback } from 'react'
+import { useCallback, useRef } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { countItems, itemKey, MAX_QTY, subtotal } from '@/features/cart/model/cart'
 import { useCart } from '@/features/cart/model/store'
 import { formatPrice, plural } from '@/shared/lib/format'
 import { useEscape } from '@/shared/lib/useEscape'
+import { useFocusTrap } from '@/shared/lib/useFocusTrap'
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll'
 import { Close } from '@/shared/ui/icons'
 
@@ -16,14 +17,16 @@ export function CartDrawer() {
 function CartPanel() {
   const { items, close, setQty, remove } = useCart()
   const navigate = useNavigate()
+  const ref = useRef<HTMLDivElement>(null)
   const onClose = useCallback(() => close(), [close])
   useEscape(onClose)
   useLockBodyScroll()
+  useFocusTrap(ref)
 
   const count = countItems(items)
 
   return (
-    <div className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Корзина">
+    <div ref={ref} className="fixed inset-0 z-[60]" role="dialog" aria-modal="true" aria-label="Корзина">
       <div className="absolute inset-0 animate-fade-in bg-black/40 backdrop-blur-[2px]" onClick={onClose} />
 
       <aside className="absolute inset-y-0 right-0 flex w-full max-w-[440px] animate-drawer-in flex-col bg-white font-mono text-[12px] text-ink shadow-2xl">

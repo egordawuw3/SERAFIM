@@ -1,7 +1,5 @@
 import { useParams } from 'react-router'
-import { deliveryOptions } from '@/entities/order/model/delivery'
 import { site } from '@/shared/config/site'
-import { formatPrice } from '@/shared/lib/format'
 import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
 import { NotFoundPage } from './NotFoundPage'
 
@@ -18,15 +16,16 @@ const PAGES: Record<string, { title: string; sections: Section[] }> = {
       {
         title: 'Оплата',
         body: [
-          'Оплата банковской картой или через СБП по ссылке, которую мы отправляем после подтверждения заказа.',
-          'Товары по предзаказу оплачиваются полностью при оформлении. Срок отправки указан в карточке товара.',
+          'Вы оставляете заявку на сайте, мы связываемся с вами, подтверждаем наличие, размер и доставку.',
+          'Оплата — банковской картой или через СБП по ссылке, которую мы присылаем после подтверждения заказа.',
         ],
       },
       {
         title: 'Доставка',
-        body: deliveryOptions.map(
-          (d) => `${d.name} — ${formatPrice(d.price)}${d.freeFrom ? `, бесплатно от ${formatPrice(d.freeFrom)}` : ''}, ${d.term}.`,
-        ),
+        body: [
+          'Отправляем СДЭК и Почтой России по всей России. Стоимость и сроки зависят от города — мы рассчитаем их, когда свяжемся с вами по заявке.',
+          'Товары в наличии отправляем за 3–5 рабочих дней, товары по предзаказу — в дату, указанную в карточке товара.',
+        ],
       },
       {
         title: 'Обмен и возврат',

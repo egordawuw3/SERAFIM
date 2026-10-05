@@ -1,5 +1,5 @@
 import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
-import { BrandPhilosophy } from '@/widgets/BrandPhilosophy'
+import { About } from '@/widgets/About'
 import { Hero } from '@/widgets/Hero'
 import { Marquee } from '@/widgets/Marquee'
 
@@ -9,7 +9,7 @@ export function HomePage() {
     <>
       <Hero />
       <Marquee />
-      <BrandPhilosophy />
+      <About />
     </>
   )
 }

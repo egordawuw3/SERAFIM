@@ -45,3 +45,9 @@ export const Caret = (p: IconProps) => (
     <path d="M0 0h10L5 6z" fill="currentColor" />
   </svg>
 )
+
+export const ChevronDown = (p: IconProps) => (
+  <svg {...base} strokeWidth={1.5} {...p}>
+    <path d="M5 9l7 7 7-7" />
+  </svg>
+)

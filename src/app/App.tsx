@@ -1,14 +1,18 @@
+import { lazy } from 'react'
 import { Route, Routes, useLocation, type Location } from 'react-router'
 import { CatalogPage } from '@/pages/CatalogPage'
-import { CheckoutPage } from '@/pages/CheckoutPage'
 import { HomePage } from '@/pages/HomePage'
-import { InfoPage } from '@/pages/InfoPage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
-import { OrderSuccessPage } from '@/pages/OrderSuccessPage'
 import { ProductModal } from '@/pages/ProductModal'
 import { ProductPage } from '@/pages/ProductPage'
+import { ErrorBoundary } from './ErrorBoundary'
 import { Layout } from './Layout'
 import { ScrollManager } from './ScrollManager'
+
+// Редко посещаемые страницы (и валидация формы на zod) — отдельными чанками.
+const CheckoutPage = lazy(() => import('@/pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage })))
+const OrderSuccessPage = lazy(() => import('@/pages/OrderSuccessPage').then((m) => ({ default: m.OrderSuccessPage })))
+const InfoPage = lazy(() => import('@/pages/InfoPage').then((m) => ({ default: m.InfoPage })))
 
 export function App() {
   const location = useLocation()
@@ -16,7 +20,7 @@ export function App() {
   const background = (location.state as { background?: Location } | null)?.background
 
   return (
-    <>
+    <ErrorBoundary>
       <ScrollManager skip={Boolean(background)} />
       <Routes location={background ?? location}>
         <Route element={<Layout />}>
@@ -34,6 +38,6 @@ export function App() {
           <Route path="product/:slug" element={<ProductModal />} />
         </Routes>
       )}
-    </>
+    </ErrorBoundary>
   )
 }

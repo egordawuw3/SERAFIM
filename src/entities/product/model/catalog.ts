@@ -1,4 +1,4 @@
-import type { Category, Product, ProductColor, Size } from './types'
+import type { Category, Product, ProductColor, Size } from './types.ts'
 
 /*
  * Временные данные каталога. Когда появится бэкенд, этот файл заменяется
@@ -62,6 +62,7 @@ export const products: Product[] = [
   defineProduct({
     id: 'p1',
     slug: 'seraph-zip-hoodie',
+    isNew: true,
     name: 'Зип-худи Seraph',
     kind: 'zip-hoodie',
     category: 'hoodies',
@@ -86,6 +87,7 @@ export const products: Product[] = [
   defineProduct({
     id: 'p2',
     slug: 'raised-hoodie',
+    isNew: true,
     name: 'Худи Raised',
     kind: 'hoodie',
     category: 'hoodies',
@@ -194,6 +196,7 @@ export const products: Product[] = [
   defineProduct({
     id: 'p7',
     slug: 'archive-pants',
+    isNew: true,
     name: 'Штаны Archive',
     kind: 'pants',
     category: 'bottoms',
@@ -217,6 +220,7 @@ export const products: Product[] = [
   defineProduct({
     id: 'p8',
     slug: 'seraph-cap',
+    isNew: true,
     name: 'Кепка Seraph',
     kind: 'cap',
     category: 'accessories',

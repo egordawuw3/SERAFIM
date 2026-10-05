@@ -1,5 +1,7 @@
 /* Чистая логика корзины — без React и хранилища, легко тестируется. */
 
+import { MAX_ITEM_QTY } from '@/entities/order/model/limits'
+
 export interface CartItem {
   productId: string
   slug: string
@@ -12,7 +14,7 @@ export interface CartItem {
   qty: number
 }
 
-export const MAX_QTY = 10
+export const MAX_QTY = MAX_ITEM_QTY
 
 export const itemKey = (i: Pick<CartItem, 'productId' | 'colorId' | 'size'>) =>
   `${i.productId}:${i.colorId}:${i.size}`
