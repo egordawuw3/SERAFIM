@@ -5,8 +5,11 @@ const env = process.env
 export const config = {
   port: Number(env.PORT) || 3000,
   isProduction: env.NODE_ENV === 'production',
-  /** Включать, только если сервер стоит за обратным прокси (nginx, Render, Railway). */
-  trustProxy: env.TRUST_PROXY === '1',
+  /**
+   * Сколько обратных прокси стоит перед сервером (nginx, Render, Railway). 0 — X-Forwarded-For не доверяем.
+   * Клиентский IP берётся справа по этому числу: левые записи заголовка присылает сам клиент и может подделать.
+   */
+  trustProxy: Math.max(0, Math.floor(Number(env.TRUST_PROXY) || 0)),
   distDir: resolve(env.DIST_DIR ?? 'dist'),
   ordersFile: resolve(env.ORDERS_FILE ?? 'data/orders.jsonl'),
   telegram: {

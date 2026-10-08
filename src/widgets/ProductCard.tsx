@@ -2,13 +2,9 @@ import { memo } from 'react'
 import { Link, useLocation } from 'react-router'
 import type { Product } from '@/entities/product/model/types'
 import { useProductSelection } from '@/entities/product/lib/useProductSelection'
-import { ColorSelect } from '@/entities/product/ui/ColorSelect'
 import { ProductBadges } from '@/entities/product/ui/ProductBadges'
-import { SizeSelect } from '@/entities/product/ui/SizeSelect'
-import { toCartItem } from '@/features/cart/lib/toCartItem'
-import { useCart } from '@/features/cart/model/store'
+import { cn } from '@/shared/lib/cn'
 import { formatPrice } from '@/shared/lib/format'
-import { PillButton } from '@/shared/ui/PillButton'
 
 interface Props {
   product: Product
@@ -20,8 +16,8 @@ interface Props {
 
 export const ProductCard = memo(function ProductCard({ product, colorId, eager }: Props) {
   const location = useLocation()
-  const add = useCart((s) => s.add)
-  const { color, size, selectColor, selectSize } = useProductSelection(product, colorId)
+  // Размер выбирается только в открытой карточке товара; здесь — лишь цвет для превью.
+  const { color, selectColor } = useProductSelection(product, colorId)
   const [front, back = front] = color.images
   const to = `/product/${product.slug}?color=${color.id}`
   const linkState = { background: location }
@@ -58,16 +54,27 @@ export const ProductCard = memo(function ProductCard({ product, colorId, eager }
       <Link to={to} state={linkState} className="font-mono text-[14px] leading-snug transition-opacity hover:opacity-60 md:text-[15px]">
         {product.name}
       </Link>
-      <p className="mt-1 font-mono text-[13px] md:text-[14px]">{formatPrice(product.price)}</p>
+      <p className="mt-1.5 font-mono text-[16px] font-medium md:text-[18px]">{formatPrice(product.price)}</p>
 
-      <div className="mt-4 flex w-full max-w-[180px] flex-col gap-1.5">
-        {product.sizes.length > 1 && <SizeSelect product={product} color={color} value={size} onChange={selectSize} />}
-        {product.colors.length > 1 && <ColorSelect product={product} value={color} onChange={selectColor} />}
-      </div>
-
-      <PillButton className="mt-4 px-5" disabled={!size} onClick={() => size && add(toCartItem(product, color, size))}>
-        {size ? 'В корзину' : 'Нет в наличии'}
-      </PillButton>
+      {product.colors.length > 1 && (
+        <div className="mt-3 flex gap-2" role="group" aria-label="Цвет">
+          {product.colors.map((c) => (
+            <button
+              key={c.id}
+              type="button"
+              title={c.name}
+              aria-label={c.name}
+              aria-pressed={c.id === color.id}
+              onClick={() => selectColor(c.id)}
+              className={cn(
+                'h-4 w-4 rounded-full border border-ink/15 ring-offset-2 ring-offset-paper transition-shadow',
+                c.id === color.id ? 'ring-1 ring-ink' : 'hover:ring-1 hover:ring-ink/30',
+              )}
+              style={{ background: c.hex }}
+            />
+          ))}
+        </div>
+      )}
     </article>
   )
 })

@@ -89,4 +89,32 @@ describe('rate limit', () => {
     expect(statuses.slice(0, 5).every((s) => s === 201)).toBe(true)
     expect(statuses[5]).toBe(429)
   })
+
+  it('ignores client-supplied X-Forwarded-For entries left of the proxy', async () => {
+    // Клиент подставляет случайный IP слева, прокси дописывает реальный справа — лимит должен считаться по реальному.
+    const statuses = []
+    for (let i = 0; i < 6; i++) statuses.push((await post(validOrder, `10.0.0.${i}, 8.8.8.8`)).status)
+    expect(statuses[5]).toBe(429)
+  })
+})
+
+describe('formatOrderMessage length', () => {
+  it('fits Telegram limit without breaking HTML', async () => {
+    const { formatOrderMessage } = await import('./telegram.ts')
+    const text = formatOrderMessage({
+      number: 'SRF-1',
+      createdAt: '',
+      customer: { ...validOrder, contactMethod: 'telegram', comment: 'x'.repeat(1000) },
+      lines: Array.from({ length: 30 }, (_, i) => ({
+        name: `Очень длинное название товара номер ${i} `.repeat(3),
+        color: 'Глубокий синий',
+        size: 'XL',
+        qty: 10,
+        price: 11990,
+      })),
+      total: 1,
+    })
+    expect(text.length).toBeLessThanOrEqual(4096)
+    expect(text.endsWith('</i>')).toBe(true)
+  })
 })

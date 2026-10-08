@@ -15,6 +15,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY src/entities ./src/entities
+# Каталог для заявок должен принадлежать node, иначе том создастся от root и запись упадёт с EACCES.
+RUN mkdir -p /app/data && chown node:node /app/data
 USER node
 EXPOSE 3000
 VOLUME ["/app/data"]

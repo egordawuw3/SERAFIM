@@ -68,7 +68,7 @@ export function CheckoutPage() {
         found[key] ??= issue.message
       }
     }
-    if (!consent) found.consent = 'Нужно согласие на обработку персональных данных'
+    if (!consent) found.consent = 'Нужно согласие с офертой и на обработку персональных данных'
     if (Object.keys(found).length) {
       setErrors(found)
       requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
@@ -226,7 +226,11 @@ export function CheckoutPage() {
             />
             <span>
               Соглашаюсь с{' '}
-              <Link to="/info/documents" target="_blank" className="underline underline-offset-2 hover:text-ink">
+              <Link to="/info/offer" target="_blank" className="underline underline-offset-2 hover:text-ink">
+                офертой
+              </Link>{' '}
+              и{' '}
+              <Link to="/info/privacy" target="_blank" className="underline underline-offset-2 hover:text-ink">
                 политикой обработки персональных данных
               </Link>
             </span>

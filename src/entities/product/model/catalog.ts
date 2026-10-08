@@ -1,9 +1,11 @@
+import { productPhotos } from './photos.generated.ts'
 import type { Category, Product, ProductColor, Size } from './types.ts'
 
 /*
  * Временные данные каталога. Когда появится бэкенд, этот файл заменяется
  * запросом к API в ../api/productApi.ts — компоненты менять не придётся.
- * Фото — плейсхолдеры из public/products (генерируются `npm run images`).
+ * Фото: настоящие — WebP из `npm run photos` (см. design/product-prompts.md),
+ * для цветов без фото — SVG-заглушки из `npm run images`.
  */
 
 export const categories: Category[] = [
@@ -16,8 +18,8 @@ export const categories: Category[] = [
 
 const APPAREL_SIZES: Size[] = ['XS', 'S', 'M', 'L', 'XL']
 
-const SHIPPING_PREORDER = 'Предзаказ · отправка с 20 ноября'
-const SHIPPING_IN_STOCK = 'Отправка 3–5 рабочих дней'
+const SHIPPING_PREORDER = 'Предзаказ · отправка в течение 30 дней после оплаты'
+const SHIPPING_IN_STOCK = 'В наличии · отправка в течение 5 дней после оплаты'
 
 export const MOCKUP_DISCLAIMER =
   'Изображения товара представлены в виде макета. Фактические оттенки изделия и принта могут незначительно отличаться от представленных на изображении.'
@@ -29,11 +31,11 @@ interface ColorInput {
   soldOut?: Size[]
 }
 
-export const productImages = (slug: string, colorId: string) => [
-  `/products/${slug}/${colorId}-front.svg`,
-  `/products/${slug}/${colorId}-back.svg`,
-  `/products/${slug}/${colorId}-detail.svg`,
-]
+export const productImages = (slug: string, colorId: string) => {
+  const photos = productPhotos[`${slug}/${colorId}`]
+  if (photos) return photos.map((view) => `/products/${slug}/${colorId}-${view}.webp`)
+  return [`/products/${slug}/${colorId}-front.svg`, `/products/${slug}/${colorId}-back.svg`, `/products/${slug}/${colorId}-detail.svg`]
+}
 
 const sizeChartPath = (slug: string) => `/products/${slug}/size-chart.svg`
 

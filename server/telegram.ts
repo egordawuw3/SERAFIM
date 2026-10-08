@@ -4,6 +4,10 @@ import type { Order } from './order.ts'
 
 const escapeHtml = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
+/** Telegram отклоняет сообщения длиннее 4096 символов — тогда заявка дошла бы только до файла. */
+const TELEGRAM_LIMIT = 4096
+const TRUNCATED_NOTE = '\n…\n<i>Сообщение обрезано, полная заявка — в data/orders.jsonl</i>'
+
 const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`
 
 export function formatOrderMessage(order: Order): string {
@@ -25,7 +29,11 @@ export function formatOrderMessage(order: Order): string {
     '',
     `<b>Итого: ${rub(order.total)}</b> (без доставки)`,
   ]
-  return rows.filter((r) => r !== null).join('\n')
+  const text = rows.filter((r) => r !== null).join('\n')
+  if (text.length <= TELEGRAM_LIMIT) return text
+  // Режем по границе строки, чтобы не разорвать HTML-тег или сущность.
+  const head = text.slice(0, TELEGRAM_LIMIT - TRUNCATED_NOTE.length)
+  return head.slice(0, head.lastIndexOf('\n')) + TRUNCATED_NOTE
 }
 
 export async function sendToTelegram(text: string): Promise<void> {

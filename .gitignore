@@ -26,3 +26,9 @@ dist-ssr
 # Server
 .env
 data/
+
+# Исходники фото товаров (на сайт идут сжатые копии из npm run photos)
+photos/
+
+# Тяжёлый исходник старого главного фото (на сайте не используется)
+design/hero-original.jpg

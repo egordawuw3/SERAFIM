@@ -21,7 +21,7 @@ export function App() {
 
   return (
     <ErrorBoundary>
-      <ScrollManager skip={Boolean(background)} />
+      <ScrollManager backgroundPath={background?.pathname} />
       <Routes location={background ?? location}>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />

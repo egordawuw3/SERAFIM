@@ -56,7 +56,9 @@ scripts/    генератор картинок-заглушек
 
 ## Что заменить на реальное
 
-- `src/entities/product/model/catalog.ts` — товары, цены, размеры, наличие; фото — в `public/products/`.
-- `public/images/hero-bg.jpg` — главное фото; кадры для «О бренде» — в `src/widgets/About.tsx`.
+- `src/entities/product/model/catalog.ts` — товары, цены, размеры, наличие.
+- Фото товаров: фото с телефона в `photos/<товар>/<цвет>-front|back.jpg` → `npm run photos` (локально вырезает фон, ставит на белый 4:5 с тенью, сжимает и подставляет на сайт). Как снимать — `design/product-prompts.md`.
+- Главное фото: исходник `design/hero-new-source.jpg` → `public/images/hero.webp` + `hero.jpg`; «О бренде» — `design/about-new-source.jpg` → `public/images/about.webp`. Исходник лучше брать от 2560 px в ширину.
+- `index.html` — `og:image` заменить на абсолютный адрес с доменом.
 - `src/shared/config/site.ts` — ссылки на Telegram, VK, почты (сейчас заглушки).
 - `src/pages/InfoPage.tsx` — тексты оферты, политики, реквизиты.

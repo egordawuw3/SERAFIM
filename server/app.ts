@@ -2,6 +2,7 @@ import { getConnInfo } from '@hono/node-server/conninfo'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { Hono } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
+import { compress } from 'hono/compress'
 import { secureHeaders } from 'hono/secure-headers'
 import { orderRequestSchema, type ApiError, type OrderResponse } from '../src/entities/order/model/schema.ts'
 import { config, telegramConfigured } from './config.ts'
@@ -14,7 +15,8 @@ const allow = createRateLimiter(config.rateLimit)
 
 function clientIp(c: Parameters<typeof getConnInfo>[0]): string {
   if (config.trustProxy) {
-    const forwarded = c.req.header('x-forwarded-for')?.split(',')[0]?.trim()
+    const chain = c.req.header('x-forwarded-for')?.split(',').map((s) => s.trim()).filter(Boolean) ?? []
+    const forwarded = chain[Math.max(0, chain.length - config.trustProxy)]
     if (forwarded) return forwarded
   }
   return getConnInfo(c).remote.address ?? 'unknown'
@@ -22,7 +24,25 @@ function clientIp(c: Parameters<typeof getConnInfo>[0]): string {
 
 export const app = new Hono()
 
-app.use('*', secureHeaders({ contentSecurityPolicy: undefined, crossOriginEmbedderPolicy: false }))
+app.use(
+  '*',
+  secureHeaders({
+    contentSecurityPolicy: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      // 'unsafe-inline' — для style={{…}} (кружки цветов в фильтре).
+      styleSrc: ["'self'", "'unsafe-inline'", 'https://fonts.googleapis.com'],
+      fontSrc: ["'self'", 'https://fonts.gstatic.com'],
+      imgSrc: ["'self'", 'data:'],
+      connectSrc: ["'self'"],
+      objectSrc: ["'none'"],
+      baseUri: ["'self'"],
+      formAction: ["'self'"],
+      frameAncestors: ["'none'"],
+    },
+    crossOriginEmbedderPolicy: false,
+  }),
+)
 
 app.get('/api/health', (c) => c.json({ ok: true, telegram: telegramConfigured() }))
 
@@ -81,7 +101,11 @@ app.onError((err, c) => {
 
 // Продакшен: отдаём собранный фронтенд, все прочие пути — index.html (SPA).
 if (config.isProduction) {
+  // index.html не кешируем: после деплоя браузер сразу получит ссылки на новые бандлы.
+  const noCache = (_p: string, c: Parameters<typeof getConnInfo>[0]) => c.header('cache-control', 'no-cache')
+  app.use('*', compress())
   app.use('/assets/*', serveStatic({ root: config.distDir, onFound: (_p, c) => c.header('cache-control', 'public, max-age=31536000, immutable') }))
+  app.get('/', serveStatic({ root: config.distDir, path: 'index.html', onFound: noCache }))
   app.use('*', serveStatic({ root: config.distDir }))
-  app.get('*', serveStatic({ root: config.distDir, path: 'index.html' }))
+  app.get('*', serveStatic({ root: config.distDir, path: 'index.html', onFound: noCache }))
 }

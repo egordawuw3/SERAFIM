@@ -1,6 +1,7 @@
-import { useCallback, useRef } from 'react'
-import { useNavigate, useParams } from 'react-router'
+import { useRef } from 'react'
+import { Navigate, useNavigate, useParams } from 'react-router'
 import { getProductBySlug } from '@/entities/product/api/productApi'
+import type { Product } from '@/entities/product/model/types'
 import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
 import { useEscape } from '@/shared/lib/useEscape'
 import { useFocusTrap } from '@/shared/lib/useFocusTrap'
@@ -13,14 +14,16 @@ export function ProductModal() {
   const { slug = '' } = useParams()
   const navigate = useNavigate()
   const product = getProductBySlug(slug)
-  const close = useCallback(() => navigate(-1), [navigate])
-  useDocumentTitle(product?.name)
+  if (!product) return <Navigate to="/catalog" replace />
+  return <ProductSheet product={product} close={() => navigate(-1)} />
+}
+
+function ProductSheet({ product, close }: { product: Product; close: () => void }) {
+  useDocumentTitle(product.name)
   const ref = useRef<HTMLDivElement>(null)
   useEscape(close)
   useLockBodyScroll()
   useFocusTrap(ref)
-
-  if (!product) return null
 
   return (
     <div ref={ref} className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-label={product.name}>
