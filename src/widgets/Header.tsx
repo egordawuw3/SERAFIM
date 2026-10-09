@@ -1,4 +1,4 @@
-import { Link, NavLink } from 'react-router'
+import { NavLink } from 'react-router'
 import { countItems } from '@/features/cart/model/cart'
 import { useCart } from '@/features/cart/model/store'
 import { cn } from '@/shared/lib/cn'
@@ -16,7 +16,7 @@ export function Header() {
     <header
       className={cn(
         'sticky top-0 z-40 w-full border-b transition-[background-color,border-color,padding] duration-500',
-        scrolled ? 'border-ink/10 bg-paper/85 py-4 backdrop-blur-md md:py-5' : 'border-transparent bg-paper py-6 md:py-8',
+        scrolled ? 'border-ink/10 bg-paper/85 py-4 backdrop-blur-md md:py-5' : 'border-transparent py-6 md:py-8',
       )}
     >
       <div className="relative flex items-center justify-between px-4 md:px-12">
@@ -24,12 +24,12 @@ export function Header() {
           <NavLink to="/catalog" className={({ isActive }) => cn(linkCls, isActive && 'text-ink')}>
             Каталог
           </NavLink>
-          <Link to="/#about" className={cn(linkCls, 'hidden sm:inline')}>
+          <NavLink to="/about" className={({ isActive }) => cn(linkCls, 'hidden sm:inline', isActive && 'text-ink')}>
             О бренде
-          </Link>
+          </NavLink>
         </nav>
 
-        <Logo className="absolute left-1/2 -translate-x-1/2 text-lg text-ink sm:text-xl md:text-3xl" />
+        <Logo className="absolute left-1/2 -translate-x-1/2 text-[1.4rem] text-ink sm:text-[1.6rem] md:text-[2.4rem]" />
 
         <button
           type="button"

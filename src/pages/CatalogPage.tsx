@@ -22,8 +22,13 @@ import { ProductCard } from '@/widgets/ProductCard'
 const toggle = <T,>(list: T[], value: T) =>
   list.includes(value) ? list.filter((v) => v !== value) : [...list, value]
 
-export function CatalogPage() {
-  useDocumentTitle('Каталог')
+interface Props {
+  /** Каталог на главной: заголовок вкладки — название бренда, а не «Каталог». */
+  home?: boolean
+}
+
+export function CatalogPage({ home = false }: Props) {
+  useDocumentTitle(home ? undefined : 'Каталог')
   const [params, setParams] = useSearchParams()
   const filters = useMemo(() => parseFilters(params), [params])
   const all = getProducts()
@@ -36,7 +41,11 @@ export function CatalogPage() {
 
   return (
     <section className="w-full px-4 pb-24 pt-4 md:px-12 md:pb-32 md:pt-6">
-      <h1 className="sr-only">Каталог</h1>
+      {home ? (
+        <h2 className="mb-6 font-mono text-[11px] uppercase tracking-[0.2em] text-muted md:mb-8">(Каталог)</h2>
+      ) : (
+        <h1 className="sr-only">Каталог</h1>
+      )}
 
       <div className="mb-10 flex flex-col gap-5 md:mb-14 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-x-7 gap-y-3">

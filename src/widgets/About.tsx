@@ -9,7 +9,7 @@ const SPECS = ['100% хлопок', 'до 400 г/м²', 'Водные краск
 
 export function About() {
   return (
-    <section id="about" className="w-full scroll-mt-20 px-4 py-28 md:px-12 md:py-40">
+    <section className="w-full px-4 py-16 md:px-12 md:py-24">
       <Reveal className="grid items-center gap-10 md:grid-cols-12 md:gap-8">
         <div className="grain overflow-hidden bg-paper-deep md:col-span-5">
           <img
@@ -22,10 +22,10 @@ export function About() {
         </div>
 
         <div className="md:col-span-6 md:col-start-7">
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">(О бренде)</p>
-          <h2 className="mt-6 text-[clamp(1.9rem,3.6vw,3.25rem)] font-light leading-[1.08] tracking-[-0.035em]">
+          <h1 className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">(О бренде)</h1>
+          <p className="mt-6 text-[clamp(1.9rem,3.6vw,3.25rem)] font-light leading-[1.08] tracking-[-0.035em]">
             Мы делаем вещи медленно — <span className="text-ink/40">так же, как растёт лес.</span>
-          </h2>
+          </p>
           <p className="mt-8 max-w-md text-[15px] leading-[1.75] text-ink/75">
             Плотный хлопок, водные краски, металлическая фурнитура. Каждая модель выходит небольшим тиражом и больше
             не повторяется.

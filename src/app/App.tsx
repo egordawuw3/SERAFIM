@@ -12,6 +12,7 @@ import { ScrollManager } from './ScrollManager'
 // Редко посещаемые страницы (и валидация формы на zod) — отдельными чанками.
 const CheckoutPage = lazy(() => import('@/pages/CheckoutPage').then((m) => ({ default: m.CheckoutPage })))
 const OrderSuccessPage = lazy(() => import('@/pages/OrderSuccessPage').then((m) => ({ default: m.OrderSuccessPage })))
+const AboutPage = lazy(() => import('@/pages/AboutPage').then((m) => ({ default: m.AboutPage })))
 const InfoPage = lazy(() => import('@/pages/InfoPage').then((m) => ({ default: m.InfoPage })))
 
 export function App() {
@@ -29,6 +30,7 @@ export function App() {
           <Route path="product/:slug" element={<ProductPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="checkout/success" element={<OrderSuccessPage />} />
+          <Route path="about" element={<AboutPage />} />
           <Route path="info/:slug" element={<InfoPage />} />
           <Route path="*" element={<NotFoundPage />} />
         </Route>

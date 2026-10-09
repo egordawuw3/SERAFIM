@@ -1,17 +1,15 @@
-import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
-import { About } from '@/widgets/About'
-import { Hero } from '@/widgets/Hero'
-import { Marquee } from '@/widgets/Marquee'
+import { BrandBanner } from '@/widgets/BrandBanner'
 import { NewArrivals } from '@/widgets/NewArrivals'
+import { CatalogPage } from './CatalogPage'
 
+/* Главная: шапка (в Layout), баннер бренда, лента новинок и сразу каталог. */
 export function HomePage() {
-  useDocumentTitle()
   return (
     <>
-      <Hero />
-      <Marquee />
+      <h1 className="sr-only">SERAFIM — одежда, рождённая природой</h1>
+      <BrandBanner />
       <NewArrivals />
-      <About />
+      <CatalogPage home />
     </>
   )
 }

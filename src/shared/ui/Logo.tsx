@@ -8,7 +8,7 @@ export function Logo({ className }: { className?: string }) {
     <Link
       to="/"
       aria-label={`${site.name} — на главную`}
-      className={cn('font-light uppercase tracking-[0.3em]', className)}
+      className={cn('font-logo font-bold uppercase wordmark', className)}
     >
       {site.name}
     </Link>

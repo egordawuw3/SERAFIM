@@ -16,9 +16,14 @@ const linkCls = 'link-hover transition-opacity hover:opacity-60'
 export function Footer() {
   const { contacts } = site
   return (
-    <footer className="mt-auto w-full overflow-hidden border-t border-ink/10 bg-paper pt-16 font-mono md:pt-20">
+    <footer className="mt-auto w-full overflow-hidden border-t border-ink/10 pt-16 font-mono md:pt-20">
       <div className="grid gap-12 px-4 md:px-12 lg:grid-cols-[1fr_auto]">
-        <div className="grid gap-10 sm:grid-cols-2 sm:gap-x-16 lg:max-w-3xl">
+        <div className="grid gap-10 sm:grid-cols-3 sm:gap-x-16 lg:max-w-3xl">
+          <Group title="Бренд">
+            <Link className={linkCls} to="/about">
+              О бренде
+            </Link>
+          </Group>
           <Group title="Контакты">
             <a className={linkCls} href={contacts.telegramChannel} target="_blank" rel="noreferrer">
               Telegram-канал

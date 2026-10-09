@@ -1,50 +1,73 @@
-import { Link } from 'react-router'
+import { Link, useLocation } from 'react-router'
 import { getProducts } from '@/entities/product/api/productApi'
-import { ArrowRight } from '@/shared/ui/icons'
-import { Reveal } from '@/shared/ui/Reveal'
-import { ProductCard } from './ProductCard'
+import type { Product } from '@/entities/product/model/types'
+import { ProductBadges } from '@/entities/product/ui/ProductBadges'
+import { formatPrice } from '@/shared/lib/format'
 
-const LIMIT = 4
+/** Минимум карточек в одной «половине» ленты, чтобы она закрывала широкий экран без пустот. */
+const MIN_PER_LOOP = 8
+/** Секунд на одну карточку — скорость прокрутки не зависит от количества товаров. */
+const SECONDS_PER_ITEM = 5
 
-/* Новинки на главной: чтобы до товара был один клик, а не только через каталог. */
+/*
+ * Лента новинок между шапкой и каталогом: прокручивается сама, на наведении останавливается.
+ * Бесконечность — две одинаковые половины и сдвиг на -50% (как бегущая строка).
+ * При «уменьшить движение» в системе анимации нет — ленту можно листать пальцем.
+ */
 export function NewArrivals() {
-  const items = getProducts()
-    .filter((p) => p.isNew)
-    .slice(0, LIMIT)
+  const location = useLocation()
+  const all = getProducts()
+  const fresh = all.filter((p) => p.isNew)
+  const items = fresh.length ? fresh : all
   if (items.length === 0) return null
 
-  return (
-    <section className="w-full px-4 pt-24 md:px-12 md:pt-32" aria-labelledby="new-arrivals">
-      <Reveal className="mb-12 flex items-end justify-between gap-6 md:mb-16">
-        <div>
-          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">(Новинки)</p>
-          <h2 id="new-arrivals" className="mt-4 text-[clamp(2rem,4vw,3.5rem)] font-light leading-none tracking-[-0.035em]">
-            Новое в коллекции
-          </h2>
-        </div>
-        <Link
-          to="/catalog?sort=new"
-          className="group hidden items-center gap-3 text-[10px] font-medium uppercase tracking-[0.25em] sm:flex"
-        >
-          <span className="link-hover">Весь каталог</span>
-          <ArrowRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
-        </Link>
-      </Reveal>
+  const loop: Product[] = []
+  while (loop.length < MIN_PER_LOOP) loop.push(...items)
 
-      <div className="grid grid-cols-2 gap-x-3 gap-y-16 md:gap-x-8 lg:grid-cols-4">
-        {items.map((p, i) => (
-          <Reveal key={p.id} delay={i * 120}>
-            <ProductCard product={p} />
-          </Reveal>
-        ))}
+  return (
+    <section className="w-full pb-14 pt-4 md:pb-20 md:pt-6" aria-labelledby="new-arrivals">
+      <div className="mb-6 flex items-baseline justify-between px-4 md:mb-8 md:px-12">
+        <h2 id="new-arrivals" className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
+          (Новинки)
+        </h2>
+        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">{items.length} шт.</p>
       </div>
 
-      <Link
-        to="/catalog?sort=new"
-        className="mx-auto mt-14 flex w-fit items-center gap-3 text-[10px] font-medium uppercase tracking-[0.25em] sm:hidden"
-      >
-        Весь каталог <ArrowRight className="h-4 w-4" />
-      </Link>
+      {/* Края ленты растворяются маской прозрачности, а не заливкой — фон с листьями под ними не перекрывается. */}
+      <div className="group/rail relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)] motion-reduce:overflow-x-auto">
+
+        <div
+          className="flex w-max animate-marquee group-hover/rail:[animation-play-state:paused] motion-reduce:animate-none"
+          style={{ animationDuration: `${loop.length * SECONDS_PER_ITEM}s` }}
+        >
+          {[0, 1].map((copy) => (
+            <ul key={copy} className="flex shrink-0 gap-3 pr-3 md:gap-6 md:pr-6" aria-hidden={copy === 1 || undefined}>
+              {loop.map((p, i) => (
+                <li key={`${p.id}-${i}`} className="w-[44vw] shrink-0 sm:w-[30vw] md:w-[22vw] lg:w-[17vw]">
+                  <Link
+                    to={`/product/${p.slug}`}
+                    state={{ background: location }}
+                    tabIndex={copy === 1 || i >= items.length ? -1 : undefined}
+                    className="group/item block"
+                  >
+                    <div className="relative mb-4 aspect-[4/5] overflow-hidden bg-paper-deep">
+                      <ProductBadges product={p} />
+                      <img
+                        src={p.colors[0].images[0]}
+                        alt={copy === 1 || i >= items.length ? '' : p.name}
+                        loading="lazy"
+                        className="h-full w-full object-cover transition-transform duration-700 group-hover/item:scale-[1.03]"
+                      />
+                    </div>
+                    <p className="font-mono text-[13px] leading-snug md:text-[14px]">{p.name}</p>
+                    <p className="mt-1 font-mono text-[15px] font-medium md:text-[16px]">{formatPrice(p.price)}</p>
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ))}
+        </div>
+      </div>
     </section>
   )
 }
