@@ -22,10 +22,10 @@ export function About() {
         </div>
 
         <div className="md:col-span-6 md:col-start-7">
-          <h1 className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">(О бренде)</h1>
-          <p className="mt-6 text-[clamp(1.9rem,3.6vw,3.25rem)] font-light leading-[1.08] tracking-[-0.035em]">
-            Мы делаем вещи медленно — <span className="text-ink/40">так же, как растёт лес.</span>
-          </p>
+          <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">(О бренде)</p>
+          <h1 className="mt-6 text-[clamp(1.9rem,3.6vw,3.25rem)] font-light leading-[1.08] tracking-[-0.035em]">
+            Мы делаем вещи медленно — <span className="text-ink/70">так же, как растёт лес.</span>
+          </h1>
           <p className="mt-8 max-w-md text-[15px] leading-[1.75] text-ink/75">
             Плотный хлопок, водные краски, металлическая фурнитура. Каждая модель выходит небольшим тиражом и больше
             не повторяется.

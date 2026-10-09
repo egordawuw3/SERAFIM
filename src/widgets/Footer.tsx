@@ -5,7 +5,7 @@ import { phoneHref, site } from '@/shared/config/site'
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-4 text-[12px] uppercase tracking-[0.08em] text-ink/30">{title} →</p>
+      <p className="mb-4 text-[12px] uppercase tracking-[0.08em] text-ink/70">{title} →</p>
       <div className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink md:text-[15px]">{children}</div>
     </div>
   )
@@ -39,7 +39,7 @@ export function Footer() {
           </Group>
         </div>
 
-        <p className="text-[12px] uppercase leading-relaxed tracking-[0.08em] text-ink/30 lg:text-right">
+        <p className="text-[12px] uppercase leading-relaxed tracking-[0.08em] text-ink/70 lg:text-right">
           {site.name} © {site.year}
           <br />
           Все права защищены
@@ -47,18 +47,18 @@ export function Footer() {
       </div>
 
       {/* Реквизиты и документы — обязательны для интернет-магазина и проверки ЮKassa. Мелко, чтобы не спорить с дизайном. */}
-      <div className="mt-14 flex flex-col gap-3 px-4 text-[11px] leading-relaxed text-ink/40 md:mt-16 md:flex-row md:items-center md:justify-between md:px-12">
+      <div className="mt-14 flex flex-col gap-3 px-4 text-[11px] leading-relaxed text-ink/70 md:mt-16 md:flex-row md:items-center md:justify-between md:px-12">
         <p>
           {site.seller.name} · самозанятый · ИНН {site.seller.inn}
         </p>
         <nav className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Документы">
-          <Link className="hover:text-ink" to="/info/payment-and-returns">
+          <Link className="inline-flex min-h-6 items-center hover:text-ink" to="/info/payment-and-returns">
             Оплата, доставка и возврат
           </Link>
-          <Link className="hover:text-ink" to="/info/offer">
+          <Link className="inline-flex min-h-6 items-center hover:text-ink" to="/info/offer">
             Оферта
           </Link>
-          <Link className="hover:text-ink" to="/info/privacy">
+          <Link className="inline-flex min-h-6 items-center hover:text-ink" to="/info/privacy">
             Политика конфиденциальности
           </Link>
         </nav>

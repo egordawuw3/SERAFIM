@@ -31,3 +31,28 @@ describe('reconcileCart', () => {
     expect(reconcileCart(items, getProductById)).toEqual([])
   })
 })
+
+describe('reconcileCart: untrusted localStorage', () => {
+  it('clamps quantity and drops malformed entries', () => {
+    const items: unknown[] = [
+      { ...base, qty: 1e9 },
+      { ...base, size: 'L', qty: 2.7 },
+      { ...base, size: 'S', qty: -3 },
+      { ...base, size: 'XL', qty: '<img src=x onerror=alert(1)>' },
+      null,
+      'garbage',
+      { ...base, productId: 42 },
+    ]
+    const res = reconcileCart(items, getProductById)
+    expect(res.map((i) => [i.size, i.qty])).toEqual([
+      ['M', 10],
+      ['L', 2],
+    ])
+  })
+
+  it('keeps only known fields', () => {
+    const [item] = reconcileCart([{ ...base, evil: 'x', image: 'javascript:alert(1)' }], getProductById)
+    expect(item).not.toHaveProperty('evil')
+    expect(item.image).toBe(getProductById('p1')!.colors[0].images[0].src)
+  })
+})

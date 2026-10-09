@@ -30,7 +30,7 @@ export function Dropdown({ label, count = 0, children, align = 'left' }: Props) 
         className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] transition-opacity hover:opacity-60 md:text-[14px]"
       >
         {label}
-        {count > 0 && <span className="text-ink/45">· {count}</span>}
+        {count > 0 && <span className="text-ink/70">· {count}</span>}
         <ChevronDown className={cn('h-3.5 w-3.5 transition-transform duration-300', open && 'rotate-180')} />
       </button>
       {open && (

@@ -1,20 +1,33 @@
 @import 'tailwindcss';
 
+/*
+ * Шрифт названия бренда: Tinos Bold (Apache 2.0), урезанный до букв S E R A F I M — 3 КБ вместо 19 КБ.
+ * Пересобрать после смены названия: python3 -m fontTools.subset <tinos-latin-700-normal.woff2> --text="…"
+ *   --flavor=woff2 --layout-features='' --output-file=public/fonts/tinos-700-serafim.woff2
+ */
+@font-face {
+  font-family: 'Tinos';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/tinos-700-serafim.woff2') format('woff2');
+}
+
 @theme {
   /* Тёплый бежевый, как крафт-бумага (выбран клиентом 2026-10-09). */
   --color-paper: #ece4d4;
   --color-paper-deep: #eae8e3;
   --color-ink: #20261c;
-  --color-muted: #6b7062;
+  /* Вспомогательный текст: контраст 4.8+ на бежевом фоне (WCAG AA — от 4.5). */
+  --color-muted: #5f6457;
   --color-forest: #181c15;
 
-  --font-sans: 'Inter', ui-sans-serif, system-ui, sans-serif;
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, sans-serif;
   /* Только для названия бренда — как на баннере с крыльями (Tinos = открытый аналог Times New Roman). */
   --font-logo: 'Tinos', 'Times New Roman', Times, serif;
-  --font-mono: 'JetBrains Mono', ui-monospace, SFMono-Regular, Menlo, monospace;
+  --font-mono: 'JetBrains Mono Variable', ui-monospace, SFMono-Regular, Menlo, monospace;
 
   --animate-marquee: marquee 40s linear infinite;
-  --animate-fade-in-up: fade-in-up 1.6s ease-out both;
   --animate-fade-in: fade-in 0.3s ease-out both;
   --animate-sheet-in: sheet-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
   --animate-drawer-in: drawer-in 0.45s cubic-bezier(0.22, 1, 0.36, 1) both;
@@ -22,10 +35,6 @@
   @keyframes marquee {
     from { transform: translateX(0); }
     to { transform: translateX(-50%); }
-  }
-  @keyframes fade-in-up {
-    from { opacity: 0; transform: translateY(20px); filter: blur(8px); }
-    to { opacity: 1; transform: translateY(0); filter: blur(0); }
   }
   @keyframes fade-in {
     from { opacity: 0; }

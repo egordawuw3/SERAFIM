@@ -13,7 +13,9 @@ export interface OrderLine {
 export interface Order {
   number: string
   createdAt: string
-  customer: Omit<OrderRequestParsed, 'items'>
+  customer: Omit<OrderRequestParsed, 'items' | 'consent'>
+  /** Когда покупатель согласился с офертой и политикой ПД (152-ФЗ: согласие нужно уметь подтвердить). */
+  consentAt: string
   lines: OrderLine[]
   total: number
 }
@@ -21,7 +23,7 @@ export interface Order {
 export class OrderValidationError extends Error {}
 
 /** Пересчитывает корзину по серверному каталогу: цены и наличие с клиента не принимаются на веру. */
-export function priceItems(items: OrderRequestParsed['items']): { lines: OrderLine[]; total: number } {
+function priceItems(items: OrderRequestParsed['items']): { lines: OrderLine[]; total: number } {
   const lines = items.map((item) => {
     const product = products.find((p) => p.id === item.productId)
     const color = product?.colors.find((c) => c.id === item.colorId)
@@ -36,14 +38,15 @@ export function priceItems(items: OrderRequestParsed['items']): { lines: OrderLi
 }
 
 /** Номер вида SRF-261005-K3F9: дата + случайный суффикс, удобно диктовать по телефону. */
-export function orderNumber(now = new Date()): string {
+function orderNumber(now = new Date()): string {
   const date = now.toISOString().slice(2, 10).replaceAll('-', '')
   const suffix = randomBytes(3).toString('hex').slice(0, 4).toUpperCase()
   return `SRF-${date}-${suffix}`
 }
 
 export function createOrder(input: OrderRequestParsed, now = new Date()): Order {
-  const { items, ...customer } = input
+  const { items, consent: _consent, ...customer } = input
   const { lines, total } = priceItems(items)
-  return { number: orderNumber(now), createdAt: now.toISOString(), customer, lines, total }
+  const at = now.toISOString()
+  return { number: orderNumber(now), createdAt: at, consentAt: at, customer, lines, total }
 }

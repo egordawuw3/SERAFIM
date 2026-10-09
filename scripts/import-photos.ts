@@ -1,5 +1,6 @@
 /*
- * Импорт фото товаров: photos/<slug>/<цвет>-front.(png|jpg|webp) и -back → public/products/<slug>/<цвет>-front.webp.
+ * Импорт фото товаров: photos/<slug>/<цвет>-front.(png|jpg|webp) и -back →
+ * public/products/<slug>/<цвет>-front-{480,800,1200,1600}.{avif,webp} — для адаптивной загрузки (srcset).
  *
  * Фото можно класть прямо с телефона: фон вырезается локальной нейросетью (бесплатно, без интернета —
  * модель скачивается один раз при установке пакета), вещь ставится по центру на белый фон 4:5 (1600×2000)
@@ -15,13 +16,16 @@ import { dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { products } from '../src/entities/product/model/catalog.ts'
+import { PHOTO_FORMATS, PHOTO_RATIO, PHOTO_WIDTHS } from '../src/entities/product/model/photoSizes.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IN = join(ROOT, 'photos')
 const OUT = join(ROOT, 'public', 'products')
 const MANIFEST = join(ROOT, 'src', 'entities', 'product', 'model', 'photos.generated.ts')
-const W = 1600
-const H = 2000
+const { width: W, height: H } = PHOTO_RATIO
+const LARGEST = PHOTO_WIDTHS[PHOTO_WIDTHS.length - 1]
+/** Качество подобрано на глаз для одежды: ткань и принт без артефактов, файл в разы легче. */
+const QUALITY = { avif: 55, webp: 80 } as const
 /** Какую долю кадра может занять вещь — остальное поля. */
 const FILL = { w: 0.84, h: 0.86 }
 const VIEWS = ['front', 'back'] as const
@@ -116,7 +120,8 @@ if (existsSync(IN)) {
         continue
       }
       const input = join(dir, file)
-      const output = join(OUT, slug, `${color.id}-${match[2]}.webp`)
+      // Самый большой WebP — маркер «уже обработано» (по времени сравниваем с исходником).
+      const output = join(OUT, slug, `${color.id}-${match[2]}-${LARGEST}.webp`)
       if (!reprocessAll && existsSync(output) && statSync(output).mtimeMs > statSync(input).mtimeMs) {
         skipped++
         continue
@@ -124,7 +129,17 @@ if (existsSync(IN)) {
       process.stdout.write(`… ${slug}/${color.id}-${match[2]}`)
       try {
         mkdirSync(join(OUT, slug), { recursive: true })
-        await (await render(input)).webp({ quality: 82 }).toFile(output)
+        const master = await (await render(input)).png().toBuffer()
+        // Все ширины и форматы из одного мастера 1600×2000: AVIF (легче) и WebP (запасной).
+        await Promise.all(
+          PHOTO_WIDTHS.flatMap((w) =>
+            PHOTO_FORMATS.map(({ ext }) => {
+              const img = sharp(master).resize(w)
+              const encoded = ext === 'avif' ? img.avif({ quality: QUALITY.avif, effort: 6 }) : img.webp({ quality: QUALITY.webp })
+              return encoded.toFile(join(OUT, slug, `${color.id}-${match[2]}-${w}.${ext}`))
+            }),
+          ),
+        )
         imported++
         process.stdout.write(` ✓\n`)
       } catch (err) {
@@ -139,7 +154,7 @@ if (existsSync(IN)) {
 const manifest: Record<string, string[]> = {}
 for (const p of products) {
   for (const c of p.colors) {
-    const views = VIEWS.filter((v) => existsSync(join(OUT, p.slug, `${c.id}-${v}.webp`)))
+    const views = VIEWS.filter((v) => existsSync(join(OUT, p.slug, `${c.id}-${v}-${LARGEST}.webp`)))
     if (views.includes('front')) manifest[`${p.slug}/${c.id}`] = views
   }
 }

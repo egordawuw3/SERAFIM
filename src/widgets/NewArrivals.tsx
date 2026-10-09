@@ -1,21 +1,25 @@
-import { Link, useLocation } from 'react-router'
+import { useState } from 'react'
 import { getProducts } from '@/entities/product/api/productApi'
 import type { Product } from '@/entities/product/model/types'
-import { ProductBadges } from '@/entities/product/ui/ProductBadges'
-import { formatPrice } from '@/shared/lib/format'
+import { cn } from '@/shared/lib/cn'
+import { ProductCard } from './ProductCard'
 
 /** Минимум карточек в одной «половине» ленты, чтобы она закрывала широкий экран без пустот. */
 const MIN_PER_LOOP = 8
 /** Секунд на одну карточку — скорость прокрутки не зависит от количества товаров. */
 const SECONDS_PER_ITEM = 5
+/** Ширина карточки в ленте — совпадает с классами w-[…] у <li>. */
+const RAIL_CARD_SIZES = '(min-width: 1024px) 17vw, (min-width: 768px) 22vw, (min-width: 640px) 30vw, 44vw'
 
 /*
- * Лента новинок между шапкой и каталогом: прокручивается сама, на наведении останавливается.
- * Бесконечность — две одинаковые половины и сдвиг на -50% (как бегущая строка).
- * При «уменьшить движение» в системе анимации нет — ленту можно листать пальцем.
+ * Лента новинок между шапкой и каталогом: прокручивается сама. Бесконечность — две одинаковые половины
+ * и сдвиг на -50% (как бегущая строка). Вторая половина — визуальный дубль: скрыта от скринридеров и Tab.
+ *
+ * Доступность (WCAG 2.2.2): движущийся дольше 5 секунд контент должен останавливаться. Лента замирает при
+ * наведении, при фокусе клавиатуры внутри и по кнопке «Пауза»; при «уменьшить движение» в системе не едет вовсе.
  */
 export function NewArrivals() {
-  const location = useLocation()
+  const [paused, setPaused] = useState(false)
   const all = getProducts()
   const fresh = all.filter((p) => p.isNew)
   const items = fresh.length ? fresh : all
@@ -26,42 +30,35 @@ export function NewArrivals() {
 
   return (
     <section className="w-full pb-14 pt-4 md:pb-20 md:pt-6" aria-labelledby="new-arrivals">
-      <div className="mb-6 flex items-baseline justify-between px-4 md:mb-8 md:px-12">
+      <div className="mb-6 flex items-center justify-between gap-4 px-4 md:mb-8 md:px-12">
         <h2 id="new-arrivals" className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
           (Новинки)
         </h2>
-        <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">{items.length} шт.</p>
+        <button
+          type="button"
+          onClick={() => setPaused((v) => !v)}
+          aria-pressed={paused}
+          className="min-h-6 font-mono text-[11px] uppercase tracking-[0.2em] text-muted transition-colors hover:text-ink motion-reduce:hidden"
+        >
+          {paused ? 'Продолжить ▶' : 'Пауза ❚❚'}
+        </button>
       </div>
 
       {/* Края ленты растворяются маской прозрачности, а не заливкой — фон с листьями под ними не перекрывается. */}
       <div className="group/rail relative overflow-hidden [mask-image:linear-gradient(to_right,transparent,black_6%,black_94%,transparent)] motion-reduce:overflow-x-auto">
-
         <div
-          className="flex w-max animate-marquee group-hover/rail:[animation-play-state:paused] motion-reduce:animate-none"
+          className={cn(
+            'flex w-max animate-marquee group-hover/rail:[animation-play-state:paused] group-focus-within/rail:[animation-play-state:paused] motion-reduce:animate-none',
+            paused && '[animation-play-state:paused]',
+          )}
           style={{ animationDuration: `${loop.length * SECONDS_PER_ITEM}s` }}
         >
           {[0, 1].map((copy) => (
             <ul key={copy} className="flex shrink-0 gap-3 pr-3 md:gap-6 md:pr-6" aria-hidden={copy === 1 || undefined}>
               {loop.map((p, i) => (
                 <li key={`${p.id}-${i}`} className="w-[44vw] shrink-0 sm:w-[30vw] md:w-[22vw] lg:w-[17vw]">
-                  <Link
-                    to={`/product/${p.slug}`}
-                    state={{ background: location }}
-                    tabIndex={copy === 1 || i >= items.length ? -1 : undefined}
-                    className="group/item block"
-                  >
-                    <div className="relative mb-4 aspect-[4/5] overflow-hidden bg-paper-deep">
-                      <ProductBadges product={p} />
-                      <img
-                        src={p.colors[0].images[0]}
-                        alt={copy === 1 || i >= items.length ? '' : p.name}
-                        loading="lazy"
-                        className="h-full w-full object-cover transition-transform duration-700 group-hover/item:scale-[1.03]"
-                      />
-                    </div>
-                    <p className="font-mono text-[13px] leading-snug md:text-[14px]">{p.name}</p>
-                    <p className="mt-1 font-mono text-[15px] font-medium md:text-[16px]">{formatPrice(p.price)}</p>
-                  </Link>
+                  {/* Повторы внутри ленты и вся вторая половина — дубли: без Tab и без озвучки. */}
+                  <ProductCard product={p} sizes={RAIL_CARD_SIZES} showColors={false} inert={copy === 1 || i >= items.length} />
                 </li>
               ))}
             </ul>

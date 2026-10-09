@@ -31,6 +31,8 @@ export const useCart = create<CartState>()(
       name: 'serafim-cart',
       version: 1,
       storage: createJSONStorage(() => localStorage),
+      // Подхватываем корзину вручную после гидратации (App → persist.rehydrate): HTML из сборки — с пустой корзиной.
+      skipHydration: true,
       partialize: (s) => ({ items: s.items }),
       merge: (persisted, current) => {
         const items = (persisted as Partial<CartState> | undefined)?.items

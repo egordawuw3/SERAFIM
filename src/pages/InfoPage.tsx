@@ -1,13 +1,11 @@
 import { useParams } from 'react-router'
 import { site } from '@/shared/config/site'
-import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
 import { INFO_PAGES } from './legalTexts'
 import { NotFoundPage } from './NotFoundPage'
 
 export function InfoPage() {
   const { slug = '' } = useParams()
   const page = INFO_PAGES[slug]
-  useDocumentTitle(page?.title)
   if (!page) return <NotFoundPage />
 
   return (

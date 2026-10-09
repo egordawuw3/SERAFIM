@@ -2,6 +2,7 @@ import { NavLink } from 'react-router'
 import { countItems } from '@/features/cart/model/cart'
 import { useCart } from '@/features/cart/model/store'
 import { cn } from '@/shared/lib/cn'
+import { prefetch } from '@/shared/lib/prefetch'
 import { useScrolled } from '@/shared/lib/useScrolled'
 import { Logo } from '@/shared/ui/Logo'
 
@@ -34,8 +35,11 @@ export function Header() {
         <button
           type="button"
           onClick={openCart}
-          className={cn(linkCls, 'text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70')}
-          aria-label={`Открыть корзину, товаров: ${count}`}
+          onPointerEnter={() => prefetch('cart')}
+          onFocus={() => prefetch('cart')}
+          aria-haspopup="dialog"
+          // Без aria-label: доступное имя = видимый текст «Корзина (N)» (WCAG 2.5.3 Label in Name).
+          className={cn(linkCls, 'min-h-6 text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70')}
         >
           Корзина ({count})
         </button>

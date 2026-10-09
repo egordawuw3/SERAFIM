@@ -2,7 +2,6 @@ import { useRef } from 'react'
 import { Navigate, useNavigate, useParams } from 'react-router'
 import { getProductBySlug } from '@/entities/product/api/productApi'
 import type { Product } from '@/entities/product/model/types'
-import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
 import { useEscape } from '@/shared/lib/useEscape'
 import { useFocusTrap } from '@/shared/lib/useFocusTrap'
 import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll'
@@ -19,7 +18,6 @@ export function ProductModal() {
 }
 
 function ProductSheet({ product, close }: { product: Product; close: () => void }) {
-  useDocumentTitle(product.name)
   const ref = useRef<HTMLDivElement>(null)
   useEscape(close)
   useLockBodyScroll()

@@ -9,6 +9,6 @@ export const toCartItem = (product: Product, color: ProductColor, size: Size, qt
   colorName: color.name,
   size,
   price: product.price,
-  image: color.images[0],
+  image: color.images[0].src,
   qty,
 })

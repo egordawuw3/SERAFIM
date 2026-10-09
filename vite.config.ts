@@ -11,6 +11,10 @@ export default defineConfig({
   server: {
     proxy: { '/api': 'http://localhost:3000' },
   },
+  build: {
+    // Шрифты не вшиваем в CSS как data: — их блокирует CSP (font-src 'self'), а отдельный файл ещё и кэшируется.
+    assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
+  },
   test: {
     environment: 'node',
     include: ['src/**/*.test.ts', 'server/**/*.test.ts'],

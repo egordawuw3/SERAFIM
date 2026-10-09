@@ -11,10 +11,9 @@ import { itemKey, subtotal } from '@/features/cart/model/cart'
 import { useCart } from '@/features/cart/model/store'
 import { cn } from '@/shared/lib/cn'
 import { formatPrice } from '@/shared/lib/format'
-import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
 import { Field, Input, Textarea } from '@/shared/ui/Field'
 
-type FormValues = Omit<OrderRequest, 'items'>
+type FormValues = Omit<OrderRequest, 'items' | 'consent'>
 type FieldErrors = Partial<Record<keyof FormValues | 'consent' | 'form', string>>
 
 const initialValues: FormValues = {
@@ -33,7 +32,6 @@ const STEPS = [
 ]
 
 export function CheckoutPage() {
-  useDocumentTitle('Оформление заказа')
   const navigate = useNavigate()
   const items = useCart((s) => s.items)
   const clearCart = useCart((s) => s.clear)
@@ -57,6 +55,8 @@ export function CheckoutPage() {
 
     const payload: OrderRequest = {
       ...values,
+      // Отправится только при отмеченной галочке: без неё форма останавливается ниже, до запроса.
+      consent: true,
       items: items.map(({ productId, colorId, size, qty }) => ({ productId, colorId, size, qty })),
     }
     const parsed = orderRequestSchema.safeParse(payload)
@@ -64,7 +64,7 @@ export function CheckoutPage() {
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const field = String(issue.path[0])
-        const key = (field in initialValues ? field : 'form') as keyof FieldErrors
+        const key = (field in initialValues || field === 'consent' ? field : 'form') as keyof FieldErrors
         found[key] ??= issue.message
       }
     }
@@ -113,7 +113,7 @@ export function CheckoutPage() {
         className="grid gap-12 font-mono text-[12px] lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-20"
       >
         <div className="max-w-2xl space-y-12">
-          <ol className="space-y-2 leading-relaxed text-ink/60">
+          <ol className="space-y-2 leading-relaxed text-ink/70">
             {STEPS.map((step, i) => (
               <li key={step} className="flex gap-4">
                 <span className="text-ink">0{i + 1}</span>
@@ -140,7 +140,7 @@ export function CheckoutPage() {
             </Field>
 
             <div>
-              <span className="mb-1.5 block text-[11px] text-ink/60">Как удобнее связаться</span>
+              <span className="mb-1.5 block text-[11px] text-ink/70">Как удобнее связаться</span>
               <div className="grid grid-cols-3 gap-2" role="radiogroup" aria-label="Способ связи">
                 {(Object.keys(CONTACT_METHODS) as ContactMethod[]).map((m) => (
                   <label
@@ -199,7 +199,7 @@ export function CheckoutPage() {
                 <img src={i.image} alt="" width={56} height={70} className="h-[70px] w-14 shrink-0 bg-paper-deep object-cover" />
                 <div className="min-w-0 flex-1">
                   <p className="leading-snug">{i.name}</p>
-                  <p className="mt-0.5 text-[11px] text-ink/50">
+                  <p className="mt-0.5 text-[11px] text-ink/70">
                     {i.colorName} · {i.size} · {i.qty} шт.
                   </p>
                 </div>
@@ -211,9 +211,9 @@ export function CheckoutPage() {
             <span>Итого</span>
             <span>{formatPrice(total)}</span>
           </div>
-          <p className="mt-1 pb-5 text-[11px] text-ink/45">Доставку рассчитаем и согласуем с вами отдельно</p>
+          <p className="mt-1 pb-5 text-[11px] text-ink/70">Доставку рассчитаем и согласуем с вами отдельно</p>
 
-          <label className="flex cursor-pointer items-start gap-2.5 text-[11px] leading-relaxed text-ink/60">
+          <label className="flex cursor-pointer items-start gap-2.5 text-[11px] leading-relaxed text-ink/70">
             <input
               type="checkbox"
               className="mt-0.5 accent-ink"

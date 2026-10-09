@@ -1,10 +1,11 @@
+import { PHOTO_FORMATS, PHOTO_RATIO, PHOTO_WIDTHS, photoFile } from './photoSizes.ts'
 import { productPhotos } from './photos.generated.ts'
-import type { Category, Product, ProductColor, Size } from './types.ts'
+import type { Category, ImageView, Product, ProductColor, ProductImage, Size } from './types.ts'
 
 /*
  * Временные данные каталога. Когда появится бэкенд, этот файл заменяется
  * запросом к API в ../api/productApi.ts — компоненты менять не придётся.
- * Фото: настоящие — WebP из `npm run photos` (см. design/product-prompts.md),
+ * Фото: настоящие — AVIF/WebP в нескольких ширинах из `npm run photos` (см. design/product-prompts.md),
  * для цветов без фото — SVG-заглушки из `npm run images`.
  */
 
@@ -31,13 +32,26 @@ interface ColorInput {
   soldOut?: Size[]
 }
 
-export const productImages = (slug: string, colorId: string) => {
-  const photos = productPhotos[`${slug}/${colorId}`]
-  if (photos) return photos.map((view) => `/products/${slug}/${colorId}-${view}.webp`)
-  return [`/products/${slug}/${colorId}-front.svg`, `/products/${slug}/${colorId}-back.svg`, `/products/${slug}/${colorId}-detail.svg`]
+/** SVG-заглушки нарисованы в 800×1000 — те же 4:5. */
+const placeholder = (src: string, view: ImageView): ProductImage => ({ src, view, width: 800, height: 1000 })
+
+const photo = (slug: string, colorId: string, view: ImageView): ProductImage => ({
+  src: photoFile(slug, colorId, view, 800, 'webp'),
+  view,
+  ...PHOTO_RATIO,
+  sources: PHOTO_FORMATS.map(({ ext, type }) => ({
+    type,
+    srcSet: PHOTO_WIDTHS.map((w) => `${photoFile(slug, colorId, view, w, ext)} ${w}w`).join(', '),
+  })),
+})
+
+function productImages(slug: string, colorId: string): ProductImage[] {
+  const views = productPhotos[`${slug}/${colorId}`] as ImageView[] | undefined
+  if (views) return views.map((view) => photo(slug, colorId, view))
+  return (['front', 'back', 'detail'] as const).map((view) => placeholder(`/products/${slug}/${colorId}-${view}.svg`, view))
 }
 
-const sizeChartPath = (slug: string) => `/products/${slug}/size-chart.svg`
+const sizeChart = (slug: string) => placeholder(`/products/${slug}/size-chart.svg`, 'size-chart')
 
 function makeColors(slug: string, skuBase: string, colors: ColorInput[]): ProductColor[] {
   return colors.map((c) => ({
@@ -56,7 +70,7 @@ function defineProduct({ skuBase, colorList, ...p }: ProductInput): Product {
   return {
     ...p,
     colors: makeColors(p.slug, skuBase, colorList),
-    sizeChart: p.kind === 'cap' ? undefined : sizeChartPath(p.slug),
+    sizeChart: p.kind === 'cap' ? undefined : sizeChart(p.slug),
   }
 }
 

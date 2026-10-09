@@ -1,6 +1,5 @@
 import { Link, useParams } from 'react-router'
 import { getProductBySlug } from '@/entities/product/api/productApi'
-import { useDocumentTitle } from '@/shared/lib/useDocumentTitle'
 import { ArrowLeft } from '@/shared/ui/icons'
 import { ProductView } from '@/widgets/ProductView'
 import { NotFoundPage } from './NotFoundPage'
@@ -9,7 +8,6 @@ import { NotFoundPage } from './NotFoundPage'
 export function ProductPage() {
   const { slug = '' } = useParams()
   const product = getProductBySlug(slug)
-  useDocumentTitle(product?.name)
   if (!product) return <NotFoundPage />
 
   return (

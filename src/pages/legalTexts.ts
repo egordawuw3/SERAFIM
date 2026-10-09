@@ -1,16 +1,17 @@
 import { site } from '@/shared/config/site'
+import { INFO_TITLES } from './infoTitles'
 
 /*
  * Тексты страниц /info/*. Составлены по шаблону под продавца-самозанятого;
  * перед запуском желательно показать юристу.
  */
 
-export interface InfoSection {
+interface InfoSection {
   title: string
   body: string[]
 }
 
-export interface InfoPageContent {
+interface InfoPageContent {
   title: string
   /** Показывать дату редакции под заголовком (для юридических документов). */
   dated?: boolean
@@ -29,7 +30,7 @@ const requisites = [
 
 export const INFO_PAGES: Record<string, InfoPageContent> = {
   'payment-and-returns': {
-    title: 'Оплата, доставка и возврат',
+    title: INFO_TITLES['payment-and-returns'],
     sections: [
       {
         title: 'Оплата',
@@ -63,7 +64,7 @@ export const INFO_PAGES: Record<string, InfoPageContent> = {
   },
 
   offer: {
-    title: 'Публичная оферта',
+    title: INFO_TITLES.offer,
     dated: true,
     sections: [
       {
@@ -128,7 +129,7 @@ export const INFO_PAGES: Record<string, InfoPageContent> = {
   },
 
   privacy: {
-    title: 'Политика обработки персональных данных',
+    title: INFO_TITLES.privacy,
     dated: true,
     sections: [
       {
