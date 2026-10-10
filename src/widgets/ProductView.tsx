@@ -4,7 +4,7 @@ import { useSearchParams } from 'react-router'
 import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
 import { ColorSelect } from '@/entities/product/ui/ColorSelect'
-import { SizeSelect } from '@/entities/product/ui/SizeSelect'
+import { SizePicker } from '@/entities/product/ui/SizePicker'
 import { SizeTable } from '@/entities/product/ui/SizeTable'
 import { toCartItem } from '@/features/cart/lib/toCartItem'
 import { useCart } from '@/features/cart/model/store'
@@ -38,17 +38,21 @@ export function ProductView({ product }: { product: Product }) {
         <p className="mt-6 text-[18px] font-medium">{formatPrice(product.price)}</p>
 
         {/* Выбор нужен, только когда есть из чего выбирать: один цвет или один размер — просто подпись. */}
-        <div className="mt-3 flex w-40 flex-col gap-1.5">
+        <div className="mt-4 flex flex-col gap-3">
+          {product.colors.length > 1 ? (
+            <ColorSelect product={product} value={color} onChange={selectColor} className="w-40" />
+          ) : (
+            <p>Цвет: {color.name.toLowerCase()}</p>
+          )}
           {product.sizes.length > 1 ? (
-            <SizeSelect product={product} color={color} value={size} onChange={selectSize} />
+            <SizePicker product={product} color={color} value={size} onChange={selectSize} />
           ) : (
             <p>Размер: {product.sizes[0] === 'ONE SIZE' ? 'единый' : product.sizes[0]}</p>
           )}
-          {product.colors.length > 1 ? <ColorSelect product={product} value={color} onChange={selectColor} /> : <p>Цвет: {color.name.toLowerCase()}</p>}
         </div>
 
         <PillButton
-          className="mt-4"
+          className="mt-5 h-11 w-full max-w-[340px] text-[12px]"
           disabled={!size}
           onClick={() => {
             if (!size) return

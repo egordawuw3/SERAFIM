@@ -65,13 +65,19 @@ export function Footer() {
       </div>
 
       {/*
-       * Вордмарк во всю ширину: сквозь буквы видно лес из фотосессии бренда.
-       * Если браузер не умеет background-clip: text — буквы просто тёмные.
+       * Вордмарк во всю ширину — тем же узким Times, что в шапке и на баннере (единый логотип).
+       * Сквозь буквы виден лес из фотосессии бренда; если браузер не умеет background-clip: text — буквы просто тёмные.
+       * Сжатие по горизонтали (wordmark = scaleX) не уменьшает ширину блока, поэтому центрируем флексом —
+       * он делит «лишнюю» ширину поровну, и после сжатия от центра надпись встаёт ровно посередине.
        */}
-      <Link to="/" aria-label={`${site.name} — на главную`} className="mt-10 block select-none px-4 pb-6 md:mt-14 md:px-12 md:pb-10">
+      <Link
+        to="/"
+        aria-label={`${site.name} — на главную`}
+        className="mt-10 flex select-none justify-center overflow-hidden px-4 pb-6 md:mt-14 md:px-12 md:pb-10"
+      >
         <span
           aria-hidden
-          className="block whitespace-nowrap text-center font-sans text-[21vw] font-semibold uppercase leading-[0.9] tracking-[-0.04em] text-ink supports-[background-clip:text]:bg-[url(/images/footer-forest.webp)] supports-[background-clip:text]:bg-cover supports-[background-clip:text]:bg-center supports-[background-clip:text]:bg-clip-text supports-[background-clip:text]:text-transparent"
+          className="wordmark whitespace-nowrap font-logo text-[26vw] font-bold uppercase leading-[0.85] text-ink supports-[background-clip:text]:bg-[url(/images/footer-forest.webp)] supports-[background-clip:text]:bg-cover supports-[background-clip:text]:bg-center supports-[background-clip:text]:bg-clip-text supports-[background-clip:text]:text-transparent"
         >
           {site.name}
         </span>
