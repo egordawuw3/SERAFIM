@@ -9,6 +9,7 @@
  * Запуск: npm run photos            — обработать новые и изменённые фото
  *         npm run photos -- --all   — переобработать всё
  *         npm run photos -- --keep-bg — не вырезать фон (если фото уже готовые, на белом)
+ *         npm run photos -- --as-is   — фото как есть (на природе, в интерьере): только кадрирование до 4:5 и сжатие
  */
 import { removeBackground } from '@imgly/background-removal-node'
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from 'node:fs'
@@ -40,6 +41,7 @@ type Overlay = NonNullable<Parameters<Image['composite']>[0]>[number]
 const args = new Set(process.argv.slice(2))
 const reprocessAll = args.has('--all')
 const keepBackground = args.has('--keep-bg')
+const asIs = args.has('--as-is')
 
 /** Вырезает вещь: RGBA с прозрачным фоном. Полупрозрачные «призраки» фона убираются, края остаются мягкими. */
 async function cutout(file: string): Promise<Image> {
@@ -63,6 +65,10 @@ async function cutout(file: string): Promise<Image> {
 }
 
 async function render(file: string): Promise<Image> {
+  // Фото как есть: заполняем рамку 4:5 без полей. Лишнее срезаем снизу (там обычно ноги фотографа, край
+  // простыни, значки редакторов), верх с капюшоном/воротником сохраняем.
+  if (asIs) return sharp(file).rotate().resize(W, H, { fit: 'cover', position: 'north' })
+
   const source = keepBackground ? sharp(file).rotate().flatten({ background: '#ffffff' }) : await cutout(file)
   // Обрезаем пустые поля, затем вписываем вещь в кадр с одинаковыми отступами.
   const garment = await source
@@ -134,7 +140,8 @@ if (existsSync(IN)) {
         await Promise.all(
           PHOTO_WIDTHS.flatMap((w) =>
             PHOTO_FORMATS.map(({ ext }) => {
-              const img = sharp(master).resize(w)
+              // Без увеличения: маленький исходник не растягиваем — браузер просто получит его настоящий размер.
+              const img = sharp(master).resize(w, null, { withoutEnlargement: true })
               const encoded = ext === 'avif' ? img.avif({ quality: QUALITY.avif, effort: 6 }) : img.webp({ quality: QUALITY.webp })
               return encoded.toFile(join(OUT, slug, `${color.id}-${match[2]}-${w}.${ext}`))
             }),

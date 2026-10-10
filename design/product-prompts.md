@@ -127,18 +127,15 @@ photos/<папка товара>/<цвет>-back.png     ← фото сзади
 
 ### Названия папок и цветов (сейчас в каталоге)
 
-| Товар | Папка | Цвета |
+| Товар | Папка | Цвет (имя файла) |
 |---|---|---|
-| Зип-худи Seraph | `seraph-zip-hoodie` | `blue`, `moss`, `milk` |
-| Худи Raised | `raised-hoodie` | `graphite`, `blue` |
-| Свитшот Pure Nature | `pure-nature-sweatshirt` | `grey`, `milk` |
-| Лонгслив Earth Born | `earth-born-longsleeve` | `milk`, `black` |
-| Футболка Ethereal | `ethereal-tee` | `white`, `moss` |
-| Футболка Halo | `halo-tee` | `black`, `blue` |
-| Штаны Archive | `archive-pants` | `graphite`, `moss` |
-| Кепка Seraph | `seraph-cap` | `blue`, `black` |
+| Регбийка I will attract | `i-will-attract-rugby` | `main` |
+| Худи The only way (голубое) | `the-only-way-hoodie` | `blue` |
+| Худи If she not from God | `if-she-not-from-god-hoodie` | `main` |
+| Худи Salvation | `salvation-hoodie` | `main` |
+| Рюкзак Jesus | `jesus-backpack` | `main` |
 
-Пример: `photos/raised-hoodie/graphite-front.png`, `photos/raised-hoodie/graphite-back.png`.
+Пример: `photos/the-only-way-hoodie/blue-front.jpg`, `photos/the-only-way-hoodie/blue-back.jpg`.
 
 **Если реальных вещей нет в этой таблице** (или названия, цены, цвета другие) — сначала пришлите список:
 название, цена, цвета, размеры, состав, что в наличии / предзаказ. Я обновлю каталог и дам названия папок.

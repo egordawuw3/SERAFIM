@@ -4,10 +4,10 @@ import type { CartItem } from '../model/cart'
 import { reconcileCart } from './reconcile'
 
 const base: CartItem = {
-  productId: 'p1',
+  productId: 'p2',
   slug: 'old-slug',
   name: 'Старое название',
-  colorId: 'blue',
+  colorId: 'grey',
   colorName: 'Синий',
   size: 'M',
   price: 1,
@@ -18,7 +18,7 @@ const base: CartItem = {
 describe('reconcileCart', () => {
   it('refreshes price and labels from the catalog, keeping quantity', () => {
     const [item] = reconcileCart([base], getProductById)
-    const product = getProductById('p1')!
+    const product = getProductById('p2')!
     expect(item).toMatchObject({ price: product.price, name: product.name, slug: product.slug, qty: 2 })
   })
 
@@ -26,7 +26,7 @@ describe('reconcileCart', () => {
     const items = [
       { ...base, productId: 'nope' },
       { ...base, colorId: 'nope' },
-      { ...base, colorId: 'moss', size: 'XS' }, // XS мха распродан
+      { ...base, productId: 'p1', colorId: 'blue', size: 'L' }, // L регбийки распродан
     ]
     expect(reconcileCart(items, getProductById)).toEqual([])
   })
@@ -53,6 +53,6 @@ describe('reconcileCart: untrusted localStorage', () => {
   it('keeps only known fields', () => {
     const [item] = reconcileCart([{ ...base, evil: 'x', image: 'javascript:alert(1)' }], getProductById)
     expect(item).not.toHaveProperty('evil')
-    expect(item.image).toBe(getProductById('p1')!.colors[0].images[0].src)
+    expect(item.image).toBe(getProductById('p2')!.colors[0].images[0].src)
   })
 })

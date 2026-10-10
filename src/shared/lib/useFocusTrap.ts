@@ -11,6 +11,9 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>) {
     const container = ref.current
     if (!container) return
     const previous = document.activeElement as HTMLElement | null
+    // Открыли с клавиатуры — вернём фокус «видимым» (рамка, пауза ленты); мышью — тихо, без :focus-visible.
+    // Иначе после закрытия по Esc браузер считает ввод клавиатурным, и, например, лента новинок замирает до клика.
+    const openedWithKeyboard = previous?.matches(':focus-visible') ?? false
     const focusables = () => [...container.querySelectorAll<HTMLElement>(FOCUSABLE)]
     ;(focusables()[0] ?? container).focus({ preventScroll: true })
 
@@ -31,7 +34,7 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>) {
     container.addEventListener('keydown', onKey)
     return () => {
       container.removeEventListener('keydown', onKey)
-      previous?.focus({ preventScroll: true })
+      previous?.focus({ preventScroll: true, focusVisible: openedWithKeyboard } as FocusOptions)
     }
   }, [ref])
 }

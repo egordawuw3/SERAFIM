@@ -18,7 +18,7 @@ const absUrl = (path: string) => `${origin()}${path}`
 
 const BRAND = site.name
 const DEFAULT_DESCRIPTION =
-  'SERAFIM — одежда, рождённая природой: плотный хлопок, водные краски, малые тиражи. Худи, свитшоты, футболки. Доставка СДЭК по всей России.'
+  'SERAFIM — одежда со смыслом: худи и регбийки кроп-фит с принтами, производство в России. Доставка СДЭК по всей России.'
 const DEFAULT_IMAGE = '/images/hero.jpg'
 
 interface PageMeta {
@@ -68,6 +68,8 @@ function productJsonLd(product: Product, path: string) {
     sku: product.colors[0].sku,
     brand: { '@type': 'Brand', name: BRAND },
     category: product.category,
+    ...(product.composition ? { material: product.composition } : {}),
+    ...(product.country ? { countryOfOrigin: { '@type': 'Country', name: product.country } } : {}),
     ...(images.length ? { image: images.map(absUrl) } : {}),
     // Отдельное предложение на каждый цвет: свой артикул и своё наличие.
     offers: product.colors.map((c) => ({
@@ -105,9 +107,14 @@ const itemList = (list: Product[]) => ({
 
 function productDescription(p: Product): string {
   const colors = p.colors.map((c) => c.name.toLowerCase()).join(', ')
-  const raw = p.details.find((d) => d.startsWith('Материал'))?.replace('Материал: ', '')
-  const material = raw && raw[0].toUpperCase() + raw.slice(1)
-  return [`${p.name} от ${BRAND}`, material, `Цвета: ${colors}`, `Размеры: ${p.sizes.join(', ')}`, p.shippingNote]
+  return [
+    `${p.name} от ${BRAND}`,
+    p.composition && `Состав: ${p.composition}`,
+    p.details.find((d) => d.startsWith('Крой')),
+    p.colors.length > 1 && `Цвета: ${colors}`,
+    p.sizes[0] !== 'ONE SIZE' && `Размеры: ${p.sizes.join(', ')}`,
+    p.shippingNote,
+  ]
     .filter(Boolean)
     .join('. ')
     .concat('.')
@@ -142,8 +149,8 @@ export function routeMeta(pathname: string): PageMeta {
 
   if (path === '/catalog') {
     return base({
-      title: `Каталог — худи, свитшоты, футболки | ${BRAND}`,
-      description: `Каталог ${BRAND}: худи, свитшоты, лонгсливы, футболки и штаны из плотного хлопка. Малые тиражи, доставка СДЭК по России.`,
+      title: `Каталог — худи, регбийки, рюкзаки | ${BRAND}`,
+      description: `Каталог ${BRAND}: худи, регбийки и аксессуары с принтами. Кроп-фит, производство в России, доставка СДЭК по всей России.`,
       path,
       jsonLd: [breadcrumbs([home, { name: 'Каталог', path }]), itemList(getProducts())],
     })
@@ -170,7 +177,7 @@ export function routeMeta(pathname: string): PageMeta {
   if (path === '/about') {
     return base({
       title: `О бренде — ${BRAND}`,
-      description: `${BRAND}: вещи из плотного хлопка с водными красками, которые выходят небольшим тиражом и не повторяются.`,
+      description: `${BRAND} — одежда со смыслом: принты, кроп-фит, производство в России. Каждая модель выходит небольшим тиражом.`,
       path,
       jsonLd: [breadcrumbs([home, { name: 'О бренде', path }])],
     })

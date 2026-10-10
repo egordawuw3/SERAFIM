@@ -5,6 +5,7 @@ import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
 import { ColorSelect } from '@/entities/product/ui/ColorSelect'
 import { SizeSelect } from '@/entities/product/ui/SizeSelect'
+import { SizeTable } from '@/entities/product/ui/SizeTable'
 import { toCartItem } from '@/features/cart/lib/toCartItem'
 import { useCart } from '@/features/cart/model/store'
 import { formatPrice } from '@/shared/lib/format'
@@ -34,11 +35,16 @@ export function ProductView({ product }: { product: Product }) {
         <h1 className="text-[16px] font-medium leading-snug">{product.name}</h1>
         <p className="mt-1 text-[11px] text-ink/70">Артикул: {color.sku}</p>
 
-        <p className="mt-6 text-[13px]">{formatPrice(product.price)}</p>
+        <p className="mt-6 text-[18px] font-medium">{formatPrice(product.price)}</p>
 
-        <div className="mt-2 flex w-36 flex-col gap-1.5">
-          <SizeSelect product={product} color={color} value={size} onChange={selectSize} />
-          <ColorSelect product={product} value={color} onChange={selectColor} />
+        {/* Выбор нужен, только когда есть из чего выбирать: один цвет или один размер — просто подпись. */}
+        <div className="mt-3 flex w-40 flex-col gap-1.5">
+          {product.sizes.length > 1 ? (
+            <SizeSelect product={product} color={color} value={size} onChange={selectSize} />
+          ) : (
+            <p>Размер: {product.sizes[0] === 'ONE SIZE' ? 'единый' : product.sizes[0]}</p>
+          )}
+          {product.colors.length > 1 ? <ColorSelect product={product} value={color} onChange={selectColor} /> : <p>Цвет: {color.name.toLowerCase()}</p>}
         </div>
 
         <PillButton
@@ -53,24 +59,40 @@ export function ProductView({ product }: { product: Product }) {
           {!size ? 'Нет в наличии' : added ? 'Добавлено ✓' : 'В корзину'}
         </PillButton>
 
-        <section className="mt-8 max-w-[340px] space-y-5">
-          <p>Информация →</p>
+        <div className="mt-8 max-w-[340px] space-y-7">
           <p>{product.shippingNote}</p>
-          <ul>
-            {product.details.map((d) => (
-              <li key={d}>• {d}</li>
-            ))}
-          </ul>
-          {product.sizeChart && <p>Размерная сетка — на последней фотографии</p>}
-          {product.modelNotes && (
-            <div>
-              {product.modelNotes.map((n) => (
-                <p key={n}>{n}</p>
+
+          <section aria-labelledby="product-about">
+            <h2 id="product-about" className="mb-2 uppercase tracking-[0.12em]">О модели</h2>
+            <ul className="space-y-0.5">
+              {product.details.map((d) => (
+                <li key={d}>• {d}</li>
               ))}
-            </div>
+              {product.composition && <li>• Состав: {product.composition}</li>}
+              {product.country && <li>• Производство: {product.country}</li>}
+            </ul>
+            {product.modelNotes?.map((n) => (
+              <p key={n} className="mt-2">
+                {n}
+              </p>
+            ))}
+          </section>
+
+          {product.measurements && <SizeTable measurements={product.measurements} caption="Размерная сетка" />}
+
+          {product.care && (
+            <section aria-labelledby="product-care">
+              <h2 id="product-care" className="mb-2 uppercase tracking-[0.12em]">Уход</h2>
+              <ul className="space-y-0.5">
+                {product.care.map((c) => (
+                  <li key={c}>• {c}</li>
+                ))}
+              </ul>
+            </section>
           )}
+
           <p className="text-ink/70">{MOCKUP_DISCLAIMER}</p>
-        </section>
+        </div>
       </div>
     </div>
   )

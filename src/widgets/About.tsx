@@ -5,7 +5,8 @@ import { Reveal } from '@/shared/ui/Reveal'
 /* Кадр — public/images/about.webp (исходник design/about-new-source.jpg). */
 const PHOTO = '/images/about.webp'
 
-const SPECS = ['100% хлопок', 'до 400 г/м²', 'Водные краски', 'Малый тираж']
+// Только то, что подтверждено клиентом: недостоверные заявления о товаре нарушают закон о защите прав потребителей.
+const SPECS = ['Хлопок в основе', 'Кроп-фит', 'Сделано в России', 'Малый тираж']
 
 export function About() {
   return (
@@ -27,8 +28,8 @@ export function About() {
             Мы делаем вещи медленно — <span className="text-ink/70">так же, как растёт лес.</span>
           </h1>
           <p className="mt-8 max-w-md text-[15px] leading-[1.75] text-ink/75">
-            Плотный хлопок, водные краски, металлическая фурнитура. Каждая модель выходит небольшим тиражом и больше
-            не повторяется.
+            Хлопок в основе, свободный кроп-фит и принты со смыслом. Шьём в России, каждая модель выходит небольшим
+            тиражом.
           </p>
 
           <ul className="mt-10 flex flex-wrap gap-2">

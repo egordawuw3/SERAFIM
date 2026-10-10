@@ -22,8 +22,7 @@ import { CheckOption, Dropdown } from '@/shared/ui/Dropdown'
 import { Select } from '@/shared/ui/Select'
 import { ProductCard } from '@/widgets/ProductCard'
 
-const toggle = <T,>(list: T[], value: T) =>
-  list.includes(value) ? list.filter((v) => v !== value) : [...list, value]
+const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
 
 /** Сколько карточек показывать сразу и добавлять по «Показать ещё»: DOM и картинки не растут вместе с каталогом. */
 const PAGE_SIZE = 24
@@ -46,7 +45,9 @@ export function CatalogPage({ home = false }: Props) {
   const filters = useMemo(() => parseFilters(isClient ? params : EMPTY_PARAMS), [isClient, params])
   const all = getProducts()
   const colors = useMemo(() => colorFacets(all), [all])
+  // В фильтрах — только варианты, по которым что-то найдётся: пустой «от 10 000 ₽» только раздражает.
   const visibleCategories = categories.filter((c) => all.some((p) => p.category === c.id))
+  const visiblePrices = PRICE_RANGES.filter((r) => all.some((p) => p.price >= r.min && p.price <= r.max))
   const list = useMemo(() => applyFilters(all, filters), [all, filters])
 
   // Фильтры живут в адресе (?color=…&sort=…): ссылкой можно поделиться, «назад» работает.
@@ -72,32 +73,46 @@ export function CatalogPage({ home = false }: Props) {
 
       <div className="mb-10 flex flex-col gap-5 md:mb-14 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
-          <Dropdown label="Цвет" count={filters.colors.length}>
-            {colors.map((c) => (
-              <CheckOption key={c.id} checked={filters.colors.includes(c.id)} onChange={() => update({ colors: toggle(filters.colors, c.id) })}>
-                <span className="h-3 w-3 rounded-full border border-ink/15" style={{ background: c.hex }} aria-hidden />
-                {c.name}
-              </CheckOption>
-            ))}
-          </Dropdown>
-          <Dropdown label="Цена" count={filters.prices.length}>
-            {PRICE_RANGES.map((r) => (
-              <CheckOption key={r.id} checked={filters.prices.includes(r.id)} onChange={() => update({ prices: toggle(filters.prices, r.id) })}>
-                {r.label}
-              </CheckOption>
-            ))}
-          </Dropdown>
-          <Dropdown label="Категории" count={filters.categories.length}>
-            {visibleCategories.map((c) => (
-              <CheckOption
-                key={c.id}
-                checked={filters.categories.includes(c.id)}
-                onChange={() => update({ categories: toggle(filters.categories, c.id) })}
-              >
-                {c.name}
-              </CheckOption>
-            ))}
-          </Dropdown>
+          {colors.length > 1 && (
+            <Dropdown label="Цвет" count={filters.colors.length}>
+              {colors.map((c) => (
+                <CheckOption
+                  key={c.id}
+                  checked={filters.colors.includes(c.id)}
+                  onChange={() => update({ colors: toggle(filters.colors, c.id) })}
+                >
+                  <span className="h-3 w-3 rounded-full border border-ink/15" style={{ background: c.hex }} aria-hidden />
+                  {c.name}
+                </CheckOption>
+              ))}
+            </Dropdown>
+          )}
+          {visiblePrices.length > 1 && (
+            <Dropdown label="Цена" count={filters.prices.length}>
+              {visiblePrices.map((r) => (
+                <CheckOption
+                  key={r.id}
+                  checked={filters.prices.includes(r.id)}
+                  onChange={() => update({ prices: toggle(filters.prices, r.id) })}
+                >
+                  {r.label}
+                </CheckOption>
+              ))}
+            </Dropdown>
+          )}
+          {visibleCategories.length > 1 && (
+            <Dropdown label="Категории" count={filters.categories.length}>
+              {visibleCategories.map((c) => (
+                <CheckOption
+                  key={c.id}
+                  checked={filters.categories.includes(c.id)}
+                  onChange={() => update({ categories: toggle(filters.categories, c.id) })}
+                >
+                  {c.name}
+                </CheckOption>
+              ))}
+            </Dropdown>
+          )}
           {hasActiveFilters(filters) && (
             <button
               type="button"

@@ -22,7 +22,7 @@ const validOrder = {
   city: 'Москва',
   comment: '',
   consent: true,
-  items: [{ productId: 'p1', colorId: 'blue', size: 'M', qty: 2 }],
+  items: [{ productId: 'p2', colorId: 'grey', size: 'M', qty: 2 }],
 }
 
 const post = (body: unknown, ip = '1.1.1.1') =>
@@ -38,11 +38,11 @@ describe('POST /api/orders', () => {
     expect(res.status).toBe(201)
     const data = (await res.json()) as { number: string; total: number }
     expect(data.number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
-    expect(data.total).toBe(11990 * 2)
+    expect(data.total).toBe(4500 * 2)
 
     const saved = JSON.parse(readFileSync(ordersFile, 'utf8').trim().split('\n').at(-1)!)
     expect(saved.customer.telegram).toBe('ivan_petrov')
-    expect(saved.lines[0]).toMatchObject({ name: 'Зип-худи Seraph', size: 'M', qty: 2 })
+    expect(saved.lines[0]).toMatchObject({ name: 'Худи The only way', size: 'M', qty: 2 })
   })
 
   it('returns field errors for invalid input', async () => {
@@ -53,7 +53,7 @@ describe('POST /api/orders', () => {
   })
 
   it('rejects sold-out sizes and unknown products', async () => {
-    const soldOut = await post({ ...validOrder, items: [{ productId: 'p1', colorId: 'moss', size: 'XS', qty: 1 }] })
+    const soldOut = await post({ ...validOrder, items: [{ productId: 'p1', colorId: 'blue', size: 'L', qty: 1 }] })
     expect(soldOut.status).toBe(409)
     const unknown = await post({ ...validOrder, items: [{ productId: 'zzz', colorId: 'blue', size: 'M', qty: 1 }] })
     expect(unknown.status).toBe(409)
@@ -66,7 +66,7 @@ describe('POST /api/orders', () => {
     const data = (await res.json()) as { number: string; total: number }
     expect(data.number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
     expect(data.number).not.toBe('SRF-000000-0000')
-    expect(data.total).toBe(11990 * 2)
+    expect(data.total).toBe(4500 * 2)
     expect(readFileSync(ordersFile, 'utf8')).toBe(before)
   })
 

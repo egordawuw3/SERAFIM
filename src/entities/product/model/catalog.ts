@@ -1,29 +1,31 @@
 import { PHOTO_FORMATS, PHOTO_RATIO, PHOTO_WIDTHS, photoFile } from './photoSizes.ts'
 import { productPhotos } from './photos.generated.ts'
-import type { Category, ImageView, Product, ProductColor, ProductImage, Size } from './types.ts'
+import type { Category, ImageView, Measurement, Product, ProductColor, ProductImage, Size } from './types.ts'
 
 /*
- * Временные данные каталога. Когда появится бэкенд, этот файл заменяется
+ * Каталог SERAFIM (данные от клиента, 10.10.2026). Когда появится бэкенд, этот файл заменяется
  * запросом к API в ../api/productApi.ts — компоненты менять не придётся.
+ *
+ * TODO(клиент): размеры, материал и уход рюкзака; вес и размер упаковки всех вещей (для СДЭК); фото сзади.
  * Фото: настоящие — AVIF/WebP в нескольких ширинах из `npm run photos` (см. design/product-prompts.md),
  * для цветов без фото — SVG-заглушки из `npm run images`.
  */
 
 export const categories: Category[] = [
-  { id: 'hoodies', name: 'Худи и зипки' },
-  { id: 'sweatshirts', name: 'Свитшоты и лонгсливы' },
-  { id: 'tees', name: 'Футболки' },
-  { id: 'bottoms', name: 'Штаны' },
+  { id: 'hoodies', name: 'Худи' },
+  { id: 'sweatshirts', name: 'Регбийки и лонгсливы' },
   { id: 'accessories', name: 'Аксессуары' },
 ]
 
-const APPAREL_SIZES: Size[] = ['XS', 'S', 'M', 'L', 'XL']
+const APPAREL_SIZES: Size[] = ['S', 'M', 'L', 'XL']
 
-const SHIPPING_PREORDER = 'Предзаказ · отправка в течение 30 дней после оплаты'
 const SHIPPING_IN_STOCK = 'В наличии · отправка в течение 5 дней после оплаты'
+const MADE_IN = 'Россия'
+/** Все три худи — серый меланж (голубое у The only way — только принт и нашивки). */
+const HOODIE_GREY = { id: 'grey', name: 'Серый меланж', hex: '#C9CAC5' }
 
 export const MOCKUP_DISCLAIMER =
-  'Изображения товара представлены в виде макета. Фактические оттенки изделия и принта могут незначительно отличаться от представленных на изображении.'
+  'Цвет изделия на фото может немного отличаться от реального из-за освещения и настроек экрана.'
 
 interface ColorInput {
   id: string
@@ -51,7 +53,6 @@ function productImages(slug: string, colorId: string): ProductImage[] {
   return (['front', 'back', 'detail'] as const).map((view) => placeholder(`/products/${slug}/${colorId}-${view}.svg`, view))
 }
 
-const sizeChart = (slug: string) => placeholder(`/products/${slug}/size-chart.svg`, 'size-chart')
 
 function makeColors(slug: string, skuBase: string, colors: ColorInput[]): ProductColor[] {
   return colors.map((c) => ({
@@ -61,193 +62,106 @@ function makeColors(slug: string, skuBase: string, colors: ColorInput[]): Produc
   }))
 }
 
-interface ProductInput extends Omit<Product, 'colors' | 'sizeChart'> {
+interface ProductInput extends Omit<Product, 'colors'> {
   skuBase: string
   colorList: ColorInput[]
 }
 
 function defineProduct({ skuBase, colorList, ...p }: ProductInput): Product {
-  return {
-    ...p,
-    colors: makeColors(p.slug, skuBase, colorList),
-    sizeChart: p.kind === 'cap' ? undefined : sizeChart(p.slug),
-  }
+  return { ...p, colors: makeColors(p.slug, skuBase, colorList) }
 }
+
+/** Замеры одинаковые у всех трёх худи (подтверждено клиентом). */
+const HOODIE_MEASUREMENTS: Measurement[] = [
+  { size: 'S', length: 61, width: 44 },
+  { size: 'M', length: 63, width: 48 },
+  { size: 'L', length: 65, width: 52 },
+  { size: 'XL', length: 67, width: 57 },
+]
+
+const HOODIE_COMMON = {
+  kind: 'hoodie',
+  category: 'hoodies',
+  price: 4500,
+  sizes: APPAREL_SIZES,
+  measurements: HOODIE_MEASUREMENTS,
+  composition: '90% хлопок, 10% полиэстер',
+  care: [
+    'Стирка при 30 °C, деликатный режим',
+    'Отжим не выше 800 об/мин',
+    'Перед стиркой вывернуть наизнанку',
+    'Не сушить в сушильной машине',
+    'Гладить с изнанки при температуре до 110 °C, не гладить по принту',
+  ],
+  country: MADE_IN,
+  shippingNote: SHIPPING_IN_STOCK,
+  details: ['Крой: кроп-фит', 'Капюшон, карман-кенгуру, без молнии', 'Принт'],
+} as const satisfies Partial<ProductInput>
 
 export const products: Product[] = [
   defineProduct({
     id: 'p1',
-    slug: 'seraph-zip-hoodie',
-    isNew: true,
-    name: 'Зип-худи Seraph',
-    kind: 'zip-hoodie',
-    category: 'hoodies',
-    price: 11990,
-    skuBase: 'SRF/FW26/ZH/SERAPH',
-    colorList: [
-      { id: 'blue', name: 'Глубокий синий', hex: '#22406E' },
-      { id: 'moss', name: 'Мох', hex: '#4D5B3C', soldOut: ['XS'] },
-      { id: 'milk', name: 'Молочный', hex: '#E6E0D2' },
-    ],
+    slug: 'i-will-attract-rugby',
+    name: 'Регбийка I will attract',
+    kind: 'rugby',
+    category: 'sweatshirts',
+    price: 3900,
+    skuBase: 'SRF/RG/IWILL',
+    colorList: [{ id: 'blue', name: 'Синий', hex: '#2A3FD0', soldOut: ['L', 'XL'] }],
     sizes: APPAREL_SIZES,
-    isPreorder: true,
-    shippingNote: SHIPPING_PREORDER,
-    details: [
-      'Крой: оверсайз',
-      'Материал: футер 3-нитка, 400 г/м², 100% хлопок',
-      'Печать водными красками',
-      'Молния: металлическая YKK с двумя бегунками',
+    measurements: [
+      { size: 'S', length: 62, width: 48 },
+      { size: 'M', length: 64, width: 50 },
+      { size: 'L', length: 66, width: 52 },
+      { size: 'XL', length: 68, width: 54 },
     ],
-    modelNotes: ['Рост девушки 172 см, размер S', 'Рост парня 186 см, размер L'],
+    composition: '75% хлопок, 20% полиэстер, 5% эластан',
+    care: [
+      'Стирка при 30 °C, минимальные обороты',
+      'Перед стиркой вывернуть наизнанку',
+      'Не отжимать и не сушить в сушильной машине',
+      'Гладить с изнанки при умеренном нагреве — 110–150 °C',
+    ],
+    country: MADE_IN,
+    shippingNote: SHIPPING_IN_STOCK,
+    details: ['Крой: кроп-фит', 'Принт'],
   }),
   defineProduct({
+    ...HOODIE_COMMON,
     id: 'p2',
-    slug: 'raised-hoodie',
-    isNew: true,
-    name: 'Худи Raised',
-    kind: 'hoodie',
-    category: 'hoodies',
-    price: 9990,
-    skuBase: 'SRF/FW26/HD/RAISED',
-    colorList: [
-      { id: 'graphite', name: 'Графит', hex: '#2C2F31' },
-      { id: 'blue', name: 'Глубокий синий', hex: '#22406E' },
-    ],
-    sizes: APPAREL_SIZES,
-    isPreorder: true,
-    shippingNote: SHIPPING_PREORDER,
-    details: [
-      'Крой: оверсайз, спущенное плечо',
-      'Материал: футер 3-нитка, 380 г/м², 100% хлопок',
-      'Двойной капюшон без шнурков',
-      'Вышивка на груди',
-    ],
-    modelNotes: ['Рост парня 186 см, размер L'],
+    slug: 'the-only-way-hoodie',
+    name: 'Худи The only way',
+    skuBase: 'SRF/HD/ONLYWAY',
+    colorList: [HOODIE_GREY],
   }),
   defineProduct({
+    ...HOODIE_COMMON,
     id: 'p3',
-    slug: 'pure-nature-sweatshirt',
-    name: 'Свитшот Pure Nature',
-    kind: 'sweatshirt',
-    category: 'sweatshirts',
-    price: 8490,
-    skuBase: 'SRF/FW26/SW/PURE',
-    colorList: [
-      { id: 'grey', name: 'Серый меланж', hex: '#9C9C95' },
-      { id: 'milk', name: 'Молочный', hex: '#E6E0D2' },
-    ],
-    sizes: APPAREL_SIZES,
-    shippingNote: SHIPPING_IN_STOCK,
-    details: [
-      'Крой: свободный',
-      'Материал: футер 3-нитка, 360 г/м², 100% хлопок',
-      'Кашкорсе на манжетах и низе',
-      'Печать водными красками',
-    ],
-    modelNotes: ['Рост девушки 172 см, размер M'],
+    slug: 'if-she-not-from-god-hoodie',
+    name: 'Худи If she not from God',
+    skuBase: 'SRF/HD/FROMGOD',
+    colorList: [HOODIE_GREY],
   }),
   defineProduct({
+    ...HOODIE_COMMON,
     id: 'p4',
-    slug: 'earth-born-longsleeve',
-    name: 'Лонгслив Earth Born',
-    kind: 'longsleeve',
-    category: 'sweatshirts',
-    price: 6490,
-    skuBase: 'SRF/FW26/LS/EARTH',
-    colorList: [
-      { id: 'milk', name: 'Молочный', hex: '#E6E0D2' },
-      { id: 'black', name: 'Чёрный', hex: '#1B1C1A', soldOut: ['XL'] },
-    ],
-    sizes: APPAREL_SIZES,
-    shippingNote: SHIPPING_IN_STOCK,
-    details: [
-      'Крой: прямой, удлинённый рукав',
-      'Материал: кулирная гладь, 220 г/м², 100% хлопок',
-      'Печать водными красками',
-    ],
-    modelNotes: ['Рост парня 186 см, размер L'],
+    slug: 'salvation-hoodie',
+    name: 'Худи Salvation',
+    skuBase: 'SRF/HD/SALVATION',
+    colorList: [HOODIE_GREY],
   }),
   defineProduct({
     id: 'p5',
-    slug: 'ethereal-tee',
-    name: 'Футболка Ethereal',
-    kind: 'tee',
-    category: 'tees',
-    price: 4490,
-    skuBase: 'SRF/FW26/TS/ETHEREAL',
-    colorList: [
-      { id: 'white', name: 'Белый', hex: '#F2F1EC' },
-      { id: 'moss', name: 'Мох', hex: '#4D5B3C' },
-    ],
-    sizes: APPAREL_SIZES,
-    shippingNote: SHIPPING_IN_STOCK,
-    details: [
-      'Крой: оверсайз',
-      'Материал: кулирная гладь, 240 г/м², 100% хлопок',
-      'Плотная горловина 3 см',
-      'Печать водными красками',
-    ],
-    modelNotes: ['Рост девушки 172 см, размер S'],
-  }),
-  defineProduct({
-    id: 'p6',
-    slug: 'halo-tee',
-    name: 'Футболка Halo',
-    kind: 'tee',
-    category: 'tees',
-    price: 4490,
-    skuBase: 'SRF/FW26/TS/HALO',
-    colorList: [
-      { id: 'black', name: 'Чёрный', hex: '#1B1C1A' },
-      { id: 'blue', name: 'Глубокий синий', hex: '#22406E', soldOut: ['XS', 'XL'] },
-    ],
-    sizes: APPAREL_SIZES,
-    shippingNote: SHIPPING_IN_STOCK,
-    details: [
-      'Крой: оверсайз',
-      'Материал: кулирная гладь, 240 г/м², 100% хлопок',
-      'Принт на спине',
-    ],
-  }),
-  defineProduct({
-    id: 'p7',
-    slug: 'archive-pants',
-    isNew: true,
-    name: 'Штаны Archive',
-    kind: 'pants',
-    category: 'bottoms',
-    price: 8990,
-    skuBase: 'SRF/FW26/PT/ARCHIVE',
-    colorList: [
-      { id: 'graphite', name: 'Графит', hex: '#2C2F31' },
-      { id: 'moss', name: 'Мох', hex: '#4D5B3C' },
-    ],
-    sizes: APPAREL_SIZES,
-    isPreorder: true,
-    shippingNote: SHIPPING_PREORDER,
-    details: [
-      'Крой: широкий, прямой',
-      'Материал: футер 3-нитка, 380 г/м², 100% хлопок',
-      'Пояс на резинке со шнурком',
-      'Боковые карманы',
-    ],
-    modelNotes: ['Рост парня 186 см, размер L'],
-  }),
-  defineProduct({
-    id: 'p8',
-    slug: 'seraph-cap',
-    isNew: true,
-    name: 'Кепка Seraph',
-    kind: 'cap',
+    slug: 'jesus-backpack',
+    name: 'Рюкзак Jesus',
+    kind: 'backpack',
     category: 'accessories',
-    price: 3490,
-    skuBase: 'SRF/FW26/CP/SERAPH',
-    colorList: [
-      { id: 'blue', name: 'Глубокий синий', hex: '#22406E' },
-      { id: 'black', name: 'Чёрный', hex: '#1B1C1A' },
-    ],
+    price: 3900,
+    skuBase: 'SRF/BP/JESUS',
+    colorList: [{ id: 'black', name: 'Чёрный', hex: '#1B1C1A' }],
     sizes: ['ONE SIZE'],
+    country: MADE_IN,
     shippingNote: SHIPPING_IN_STOCK,
-    details: ['Материал: 100% хлопок, твил', 'Регулируемый ремешок с металлической пряжкой', 'Вышивка спереди'],
+    details: ['Принт'],
   }),
 ]

@@ -15,13 +15,13 @@ interface Props {
 }
 
 /*
- * Галерея товара: фото выбранного цвета + размерная сетка последней.
+ * Галерея товара: фото выбранного цвета (размерная сетка — таблицей в описании товара).
  * Скорость: монтируются только уже показанные кадры и соседние — остальные не качаются, пока до них не дошли.
  * Доступность: карусель размечена (aria-roledescription), смена кадра озвучивается, стрелки клавиатуры
  * работают, когда фокус на галерее (а не на всей странице, как раньше).
  */
 export function ProductGallery({ product, color }: Props) {
-  const images = product.sizeChart ? [...color.images, product.sizeChart] : color.images
+  const images = color.images
   const count = images.length
   const [index, setIndex] = useState(0)
   const [seen, setSeen] = useState(() => new Set([0, 1]))

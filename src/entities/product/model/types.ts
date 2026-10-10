@@ -1,13 +1,7 @@
 export type Size = 'XS' | 'S' | 'M' | 'L' | 'XL' | 'XXL' | 'ONE SIZE'
 
-export type GarmentKind =
-  | 'zip-hoodie'
-  | 'hoodie'
-  | 'sweatshirt'
-  | 'longsleeve'
-  | 'tee'
-  | 'pants'
-  | 'cap'
+/** Вид изделия — по нему рисуются SVG-заглушки, пока нет фото (scripts/generate-placeholders.ts). */
+export type GarmentKind = 'hoodie' | 'rugby' | 'backpack'
 
 export type CategoryId = 'hoodies' | 'sweatshirts' | 'tees' | 'bottoms' | 'accessories'
 
@@ -16,8 +10,8 @@ export interface Category {
   name: string
 }
 
-/** Ракурс фото — из него собирается alt («вид спереди», «размерная сетка»…). */
-export type ImageView = 'front' | 'back' | 'detail' | 'size-chart'
+/** Ракурс фото — из него собирается alt («вид спереди», «вид сзади»…). */
+export type ImageView = 'front' | 'back' | 'detail'
 
 export interface ProductImage {
   /** Запасной адрес: SVG-заглушка или WebP 800 px для браузеров без <picture>. */
@@ -41,6 +35,14 @@ export interface ProductColor {
   soldOut?: Size[]
 }
 
+export interface Measurement {
+  size: Size
+  /** Длина изделия, см. */
+  length: number
+  /** Ширина по груди, см. */
+  width: number
+}
+
 export interface Product {
   id: string
   slug: string
@@ -50,9 +52,15 @@ export interface Product {
   price: number
   colors: ProductColor[]
   sizes: Size[]
-  /** Изображение размерной сетки — всегда последнее в галерее. */
-  sizeChart?: ProductImage
+  /** Замеры изделия в сантиметрах по размерам — выводятся таблицей «Размерная сетка». */
+  measurements?: Measurement[]
+  /** Состав ткани, например «90% хлопок, 10% полиэстер». */
+  composition?: string
+  /** Рекомендации по уходу — по закону о защите прав потребителей покупатель должен видеть их до покупки. */
+  care?: string[]
+  country?: string
   shippingNote: string
+  /** Особенности кроя и деталей: «Кроп-фит», «Капюшон, карман-кенгуру»… */
   details: string[]
   modelNotes?: string[]
   isPreorder?: boolean
