@@ -1,10 +1,11 @@
-import { NavLink } from 'react-router'
+import { NavLink, useLocation } from 'react-router'
 import { countItems } from '@/features/cart/model/cart'
 import { useCart } from '@/features/cart/model/store'
 import { cn } from '@/shared/lib/cn'
 import { prefetch } from '@/shared/lib/prefetch'
 import { useScrolled } from '@/shared/lib/useScrolled'
 import { Logo } from '@/shared/ui/Logo'
+import { useBannerInView } from '@/shared/lib/bannerVisibility'
 
 const linkCls = 'link-hover transition-colors duration-300 hover:text-ink'
 
@@ -12,6 +13,10 @@ export function Header() {
   const count = useCart((s) => countItems(s.items))
   const openCart = useCart((s) => s.open)
   const scrolled = useScrolled()
+  // На главной, пока виден баннер с огромным SERAFIM, логотип в шапке прячем — без двойного названия подряд.
+  const isHome = useLocation().pathname === '/'
+  const bannerInView = useBannerInView()
+  const hideLogo = isHome && bannerInView
 
   return (
     <header
@@ -30,7 +35,13 @@ export function Header() {
           </NavLink>
         </nav>
 
-        <Logo className="absolute left-1/2 -translate-x-1/2 text-[1.4rem] text-ink sm:text-[1.6rem] md:text-[2.4rem]" />
+        <Logo
+          hidden={hideLogo}
+          className={cn(
+            'absolute left-1/2 -translate-x-1/2 text-[1.4rem] text-ink transition-[opacity,translate] duration-500 sm:text-[1.6rem] md:text-[2.4rem]',
+            hideLogo && 'pointer-events-none -translate-y-2 opacity-0',
+          )}
+        />
 
         <button
           type="button"

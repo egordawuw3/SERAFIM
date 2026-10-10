@@ -1,5 +1,6 @@
-import { useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { site } from '@/shared/config/site'
+import { setBannerInView } from '@/shared/lib/bannerVisibility'
 
 /*
  * Баннер бренда над лентой новинок: фото природы во всю ширину и поверх — название шрифтом логотипа.
@@ -7,9 +8,26 @@ import { site } from '@/shared/config/site'
  */
 export function BrandBanner() {
   const [photoFailed, setPhotoFailed] = useState(false)
+  const ref = useRef<HTMLElement>(null)
+
+  // Сообщаем шапке, виден ли баннер: логотип там появится, когда баннер почти уйдёт под шапку.
+  useEffect(() => {
+    const el = ref.current
+    if (!el || !('IntersectionObserver' in window)) return setBannerInView(false)
+    setBannerInView(true)
+    const io = new IntersectionObserver(([entry]) => setBannerInView(entry.intersectionRatio > 0.25), {
+      threshold: [0, 0.25, 0.5],
+      rootMargin: '-80px 0px 0px 0px', // высота шапки: часть баннера под ней уже не видна
+    })
+    io.observe(el)
+    return () => {
+      io.disconnect()
+      setBannerInView(false)
+    }
+  }, [])
 
   return (
-    <section className="mt-1 w-full px-3 pb-10 md:px-8 md:pb-14">
+    <section ref={ref} className="mt-1 w-full px-3 pb-10 md:px-8 md:pb-14">
       <div className="grain relative flex h-[40svh] min-h-[260px] w-full items-center justify-center overflow-hidden rounded-[2px] bg-gradient-to-br from-[#2b3a25] via-[#1c2618] to-[#0f140d] md:h-[52vh]">
         {!photoFailed && (
           <picture>

@@ -32,10 +32,11 @@ export function ProductView({ product }: { product: Product }) {
       <ProductGallery product={product} color={color} />
 
       <div className="font-mono text-[12px] leading-[1.6] text-ink lg:pt-2">
-        <h1 className="text-[16px] font-medium leading-snug">{product.name}</h1>
-        <p className="mt-1 text-[11px] text-ink/70">Артикул: {color.sku}</p>
+        {/* Иерархия: название и цена — крупно обычным шрифтом, всё остальное — мелкий моноширинный. */}
+        <h1 className="font-sans text-[28px] font-light leading-[1.1] tracking-[-0.02em] md:text-[34px]">{product.name}</h1>
 
-        <p className="mt-6 text-[18px] font-medium">{formatPrice(product.price)}</p>
+        {/* Артикул покупателю не показываем — он остаётся только в микроразметке Schema.org (sku). */}
+        <p className="mt-5 font-sans text-[24px] font-normal tracking-[-0.01em] md:text-[26px]">{formatPrice(product.price)}</p>
 
         {/* Выбор нужен, только когда есть из чего выбирать: один цвет или один размер — просто подпись. */}
         <div className="mt-4 flex flex-col gap-3">
