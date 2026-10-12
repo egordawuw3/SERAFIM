@@ -40,7 +40,7 @@
 | Поле | Значение |
 |---|---|
 | Project name | `serafim` (должно совпадать с `name` в wrangler.jsonc) |
-| Production branch | рабочая ветка (сейчас `claude/serene-goldberg-is4b5v`) |
+| Production branch | `main` |
 | Build command | `npm run build` |
 | Deploy command | `npx wrangler d1 migrations apply serafim --remote && npx wrangler deploy` |
 
