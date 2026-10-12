@@ -11,6 +11,7 @@
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { CACHE_RULES, SECURITY_HEADERS } from '../server/securityHeaders.ts'
 
 interface ServerEntry {
   render(url: string): Promise<string>
@@ -28,7 +29,6 @@ const entry = (await import(entryUrl)) as ServerEntry
 
 const routes = [
   '/',
-  '/catalog',
   '/about',
   '/checkout',
   '/checkout/success',
@@ -68,11 +68,30 @@ await renderPage('/404', join(DIST, '404.html'))
 // robots.txt и sitemap.xml
 const site = entry.SITE_URL
 const indexable = routes.filter((r) => !entry.routeMeta(r).noindex && r !== '/info/documents')
+// PREVIEW=1 — временный адрес (например, *.workers.dev до подключения домена): в поиск не пускаем, иначе дубль сайта.
+const preview = process.env.PREVIEW === '1'
 writeFileSync(
   join(DIST, 'robots.txt'),
-  ['User-agent: *', 'Allow: /', 'Disallow: /checkout', 'Disallow: /api/', site && `\nSitemap: ${site}/sitemap.xml`]
+  (preview
+    ? ['User-agent: *', 'Disallow: /']
+    : ['User-agent: *', 'Allow: /', 'Disallow: /checkout', 'Disallow: /api/', site && `\nSitemap: ${site}/sitemap.xml`]
+  )
     .filter(Boolean)
     .join('\n') + '\n',
+)
+
+// Заголовки для Cloudflare: статику он отдаёт сам, без нашего кода, — безопасность и кеш задаются файлом _headers.
+// Node-сервер этот файл не читает: те же заголовки он ставит в middleware (server/securityHeaders.ts).
+const headerLines = (pattern: string, headers: Record<string, string>) => [
+  pattern,
+  ...Object.entries(headers).map(([name, value]) => `  ${name}: ${value}`),
+]
+writeFileSync(
+  join(DIST, '_headers'),
+  [
+    ...headerLines('/*', { ...SECURITY_HEADERS, ...(preview ? { 'X-Robots-Tag': 'noindex, nofollow' } : {}) }),
+    ...CACHE_RULES.flatMap(({ prefix, value }) => headerLines(`${prefix}*`, { 'Cache-Control': value })),
+  ].join('\n') + '\n',
 )
 if (site) {
   const today = new Date().toISOString().slice(0, 10)
@@ -82,4 +101,4 @@ if (site) {
   console.warn('[prerender] VITE_SITE_URL не задан: без canonical, og:url и sitemap.xml. Для продакшена задайте адрес сайта.')
 }
 
-console.info(`[prerender] страниц: ${routes.length + 1} (включая 404)`)
+console.info(`[prerender] страниц: ${routes.length + 1} (включая 404)${preview ? ' · PREVIEW: закрыто от поисковиков' : ''}`)

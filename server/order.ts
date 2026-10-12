@@ -1,6 +1,6 @@
-import { randomBytes } from 'node:crypto'
 import { products } from '../src/entities/product/model/catalog.ts'
 import type { OrderRequestParsed } from '../src/entities/order/model/schema.ts'
+import { site } from '../src/shared/config/site.ts'
 
 export interface OrderLine {
   name: string
@@ -13,9 +13,13 @@ export interface OrderLine {
 export interface Order {
   number: string
   createdAt: string
-  customer: Omit<OrderRequestParsed, 'items' | 'consent'>
-  /** Когда покупатель согласился с офертой и политикой ПД (152-ФЗ: согласие нужно уметь подтвердить). */
+  customer: Omit<OrderRequestParsed, 'items' | 'consent' | 'offerAccepted'>
+  /** Когда покупатель принял оферту. */
+  offerAcceptedAt: string
+  /** Когда дал отдельное согласие на обработку персональных данных (152-ФЗ: согласие нужно уметь подтвердить). */
   consentAt: string
+  /** Редакция документов, на которые соглашался покупатель (дата из site.terms.documentsDate). */
+  documentsVersion: string
   lines: OrderLine[]
   total: number
 }
@@ -40,13 +44,24 @@ function priceItems(items: OrderRequestParsed['items']): { lines: OrderLine[]; t
 /** Номер вида SRF-261005-K3F9: дата + случайный суффикс, удобно диктовать по телефону. */
 function orderNumber(now = new Date()): string {
   const date = now.toISOString().slice(2, 10).replaceAll('-', '')
-  const suffix = randomBytes(3).toString('hex').slice(0, 4).toUpperCase()
+  // Web Crypto, а не node:crypto: этот код работает и в Node, и в Cloudflare Workers.
+  const [a, b] = crypto.getRandomValues(new Uint8Array(2))
+  const suffix = ((a << 8) | b).toString(16).padStart(4, '0').toUpperCase()
   return `SRF-${date}-${suffix}`
 }
 
 export function createOrder(input: OrderRequestParsed, now = new Date()): Order {
-  const { items, consent: _consent, ...customer } = input
+  const { items, consent: _consent, offerAccepted: _offer, ...customer } = input
   const { lines, total } = priceItems(items)
   const at = now.toISOString()
-  return { number: orderNumber(now), createdAt: at, consentAt: at, customer, lines, total }
+  return {
+    number: orderNumber(now),
+    createdAt: at,
+    offerAcceptedAt: at,
+    consentAt: at,
+    documentsVersion: site.terms.documentsDate,
+    customer,
+    lines,
+    total,
+  }
 }

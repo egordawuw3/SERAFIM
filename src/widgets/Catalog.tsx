@@ -20,34 +20,44 @@ import { plural } from '@/shared/lib/format'
 import { useIsClient } from '@/shared/lib/useIsClient'
 import { CheckOption, Dropdown } from '@/shared/ui/Dropdown'
 import { Select } from '@/shared/ui/Select'
-import { ProductCard } from '@/widgets/ProductCard'
+import { ProductCard } from './ProductCard'
 
 const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
 
 /** Сколько карточек показывать сразу и добавлять по «Показать ещё»: DOM и картинки не растут вместе с каталогом. */
 const PAGE_SIZE = 24
-/** Сколько первых карточек грузить с высоким приоритетом (видны без прокрутки на десктопе). */
-const PRIORITY_CARDS = 4
 
 const EMPTY_PARAMS = new URLSearchParams()
 
 const NO_FILTERS: Pick<CatalogFilters, 'colors' | 'prices' | 'categories'> = { colors: [], prices: [], categories: [] }
 
-interface Props {
-  /** Каталог на главной: заголовок вкладки — название бренда, а не «Каталог». */
-  home?: boolean
-}
-
-export function CatalogPage({ home = false }: Props) {
+/*
+ * Каталог — раздел главной (#catalog); отдельной страницы /catalog больше нет, старые ссылки ведут сюда.
+ * Карточки ниже баннера и ленты, поэтому фото грузятся лениво — первый экран за ними не ждёт.
+ */
+export function Catalog() {
   const [params, setParams] = useSearchParams()
   // Фильтры из адреса применяем после гидратации: готовый HTML каталога собран без фильтров.
   const isClient = useIsClient()
-  const filters = useMemo(() => parseFilters(isClient ? params : EMPTY_PARAMS), [isClient, params])
   const all = getProducts()
   const colors = useMemo(() => colorFacets(all), [all])
   // В фильтрах — только варианты, по которым что-то найдётся: пустой «от 10 000 ₽» только раздражает.
   const visibleCategories = categories.filter((c) => all.some((p) => p.category === c.id))
   const visiblePrices = PRICE_RANGES.filter((r) => all.some((p) => p.price >= r.min && p.price <= r.max))
+  // «Сначала новинки» без единой новинки ничего не меняет — не показываем.
+  const hasNew = all.some((p) => p.isNew)
+  const sortOptions = useMemo(() => (hasNew ? SORT_OPTIONS : SORT_OPTIONS.filter((o) => o.value !== 'new')), [hasNew])
+  const filters = useMemo(() => {
+    const f = parseFilters(isClient ? params : EMPTY_PARAMS)
+    // Неизвестные значения из адреса (старая ссылка, опечатка, ?category=hack) отбрасываем: иначе каталог пустой,
+    // а в фильтрах ничего не отмечено и непонятно, что сбрасывать.
+    return {
+      colors: f.colors.filter((id) => colors.some((c) => c.id === id)),
+      prices: f.prices.filter((id) => PRICE_RANGES.some((r) => r.id === id)),
+      categories: f.categories.filter((id) => categories.some((c) => c.id === id)),
+      sort: sortOptions.some((o) => o.value === f.sort) ? f.sort : 'default',
+    } satisfies CatalogFilters
+  }, [isClient, params, colors, sortOptions])
   const list = useMemo(() => applyFilters(all, filters), [all, filters])
 
   // Фильтры живут в адресе (?color=…&sort=…): ссылкой можно поделиться, «назад» работает.
@@ -61,15 +71,12 @@ export function CatalogPage({ home = false }: Props) {
   const [shown, setShown] = useState({ key: filtersKey, count: PAGE_SIZE })
   if (shown.key !== filtersKey) setShown({ key: filtersKey, count: PAGE_SIZE })
   const visible = list.slice(0, shown.count)
-  const cardHeading = home ? 3 : 2
 
   return (
-    <section className="w-full px-4 pb-24 pt-4 md:px-12 md:pb-32 md:pt-6">
-      {home ? (
-        <h2 className="mb-6 font-mono text-[11px] uppercase tracking-[0.2em] text-muted md:mb-8">(Каталог)</h2>
-      ) : (
-        <h1 className="sr-only">Каталог</h1>
-      )}
+    <section id="catalog" className="w-full scroll-mt-20 px-4 pb-24 pt-4 md:px-12 md:pb-32 md:pt-6" aria-labelledby="catalog-title">
+      <h2 id="catalog-title" className="mb-6 font-mono text-[11px] uppercase tracking-[0.2em] text-muted md:mb-8">
+        (Каталог)
+      </h2>
 
       <div className="mb-10 flex flex-col gap-5 md:mb-14 md:flex-row md:items-center md:justify-between">
         <div className="flex flex-wrap items-center gap-x-7 gap-y-3">
@@ -129,7 +136,7 @@ export function CatalogPage({ home = false }: Props) {
           className="w-full md:w-60"
           value={filters.sort}
           onChange={(v) => update({ sort: v as SortKey })}
-          options={SORT_OPTIONS.map((o) => ({ value: o.value, label: `Порядок: ${o.label}` }))}
+          options={sortOptions.map((o) => ({ value: o.value, label: `Порядок: ${o.label}` }))}
         />
       </div>
 
@@ -162,13 +169,12 @@ export function CatalogPage({ home = false }: Props) {
               isPending && 'opacity-60',
             )}
           >
-            {visible.map((p, i) => (
+            {visible.map((p) => (
               <li key={p.id}>
                 <ProductCard
                   product={p}
                   colorId={preferredColor(p, filters.colors).id}
-                  priority={!home && i < PRIORITY_CARDS}
-                  headingLevel={cardHeading}
+                  headingLevel={3}
                 />
               </li>
             ))}

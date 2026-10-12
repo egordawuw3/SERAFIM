@@ -1,67 +1,84 @@
-import type { ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { Link } from 'react-router'
-import { phoneHref, site } from '@/shared/config/site'
+import { site } from '@/shared/config/site'
+import { cn } from '@/shared/lib/cn'
 
 function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
-      <p className="mb-4 text-[12px] uppercase tracking-[0.08em] text-ink/70">{title} →</p>
-      <div className="flex flex-wrap gap-x-6 gap-y-2 text-[14px] text-ink md:text-[15px]">{children}</div>
+      <p className="mb-4 text-[12px] uppercase tracking-[0.1em] text-ink/70">{title} →</p>
+      <div className="flex flex-wrap gap-x-6 gap-y-2 text-[15px] text-ink md:text-[16px]">{children}</div>
     </div>
   )
 }
 
-const linkCls = 'link-hover transition-opacity hover:opacity-60'
+// min-h-6 — зона касания не меньше 24 px (WCAG 2.5.8).
+const linkCls = 'link-hover inline-flex min-h-6 items-center transition-opacity hover:opacity-60'
 
 export function Footer() {
-  const { contacts } = site
+  const { contacts, seller } = site
+  // Фото леса в буквах (45 КБ) качаем, только когда футер почти доскроллили: на первом экране оно не видно,
+  // а раньше грузилось на каждой странице вместе с главными картинками. До этого буквы просто тёмные.
+  const wordmarkRef = useRef<HTMLAnchorElement>(null)
+  const [nearWordmark, setNearWordmark] = useState(false)
+  useEffect(() => {
+    const el = wordmarkRef.current
+    if (!el || !('IntersectionObserver' in window)) return setNearWordmark(true)
+    const io = new IntersectionObserver(
+      ([entry]) => {
+        if (!entry.isIntersecting) return
+        setNearWordmark(true)
+        io.disconnect()
+      },
+      { rootMargin: '800px 0px' },
+    )
+    io.observe(el)
+    return () => io.disconnect()
+  }, [])
+
   return (
-    <footer className="mt-auto w-full overflow-hidden border-t border-ink/10 pt-16 font-mono md:pt-20">
-      <div className="grid gap-12 px-4 md:px-12 lg:grid-cols-[1fr_auto]">
-        <div className="grid gap-10 sm:grid-cols-3 sm:gap-x-16 lg:max-w-3xl">
-          <Group title="Бренд">
-            <Link className={linkCls} to="/about">
-              О бренде
-            </Link>
-          </Group>
+    <footer className="mt-auto w-full overflow-hidden border-t border-ink/10 pt-16 font-mono md:pt-24">
+      {/*
+       * Слева — ссылки по группам в две колонки (как у брендов одежды: всё по категориям, а не россыпью),
+       * справа — копирайт и реквизиты продавца (обязательны для интернет-магазина и проверки ЮKassa).
+       */}
+      <div className="grid gap-12 px-4 md:px-12 lg:grid-cols-[1fr_auto] lg:gap-24">
+        <div className="grid gap-x-24 gap-y-10 sm:grid-cols-2 lg:max-w-3xl">
           <Group title="Контакты">
             <a className={linkCls} href={contacts.telegramChannel} target="_blank" rel="noreferrer">
-              Telegram-канал
+              Наш канал
             </a>
           </Group>
+          <Group title="Покупателям">
+            <Link className={linkCls} to="/info/payment-and-returns">
+              Оплата и возврат
+            </Link>
+            <Link className={linkCls} to="/info/offer">
+              Оферта
+            </Link>
+            <Link className={linkCls} to="/info/privacy">
+              Конфиденциальность
+            </Link>
+          </Group>
           <Group title="Поддержка">
-            <a className={linkCls} href={phoneHref}>
-              {contacts.phone}
-            </a>
-            <a className={linkCls} href={`mailto:${contacts.email}`}>
-              {contacts.email}
+            <a className={linkCls} href={contacts.supportTelegram} target="_blank" rel="noreferrer">
+              Написать нам
             </a>
           </Group>
         </div>
 
-        <p className="text-[12px] uppercase leading-relaxed tracking-[0.08em] text-ink/70 lg:text-right">
-          {site.name} © {site.year}
-          <br />
-          Все права защищены
-        </p>
-      </div>
-
-      {/* Реквизиты и документы — обязательны для интернет-магазина и проверки ЮKassa. Мелко, чтобы не спорить с дизайном. */}
-      <div className="mt-14 flex flex-col gap-3 px-4 text-[11px] leading-relaxed text-ink/70 md:mt-16 md:flex-row md:items-center md:justify-between md:px-12">
-        <p>
-          {site.seller.name} · самозанятый · ИНН {site.seller.inn}
-        </p>
-        <nav className="flex flex-wrap gap-x-5 gap-y-1" aria-label="Документы">
-          <Link className="inline-flex min-h-6 items-center hover:text-ink" to="/info/payment-and-returns">
-            Оплата, доставка и возврат
-          </Link>
-          <Link className="inline-flex min-h-6 items-center hover:text-ink" to="/info/offer">
-            Оферта
-          </Link>
-          <Link className="inline-flex min-h-6 items-center hover:text-ink" to="/info/privacy">
-            Политика конфиденциальности
-          </Link>
-        </nav>
+        <div className="space-y-6 text-[12px] uppercase leading-relaxed tracking-[0.08em] text-ink/70 lg:text-right">
+          <p>
+            {site.name} © {site.year}
+            <br />
+            Все права защищены
+          </p>
+          <p className="text-[11px] normal-case tracking-normal">
+            {seller.name}
+            <br />
+            Самозанятый · ИНН {seller.inn}
+          </p>
+        </div>
       </div>
 
       {/*
@@ -71,13 +88,18 @@ export function Footer() {
        * он делит «лишнюю» ширину поровну, и после сжатия от центра надпись встаёт ровно посередине.
        */}
       <Link
+        ref={wordmarkRef}
         to="/"
         aria-label={`${site.name} — на главную`}
         className="mt-10 flex select-none justify-center overflow-hidden px-4 pb-6 md:mt-14 md:px-12 md:pb-10"
       >
         <span
           aria-hidden
-          className="wordmark whitespace-nowrap font-logo text-[26vw] font-bold uppercase leading-[0.85] text-ink supports-[background-clip:text]:bg-[url(/images/footer-forest.webp)] supports-[background-clip:text]:bg-cover supports-[background-clip:text]:bg-center supports-[background-clip:text]:bg-clip-text supports-[background-clip:text]:text-transparent"
+          className={cn(
+            'wordmark whitespace-nowrap font-logo text-[26vw] font-bold uppercase leading-[0.85] text-ink',
+            nearWordmark &&
+              'supports-[background-clip:text]:bg-[url(/images/footer-forest.webp)] supports-[background-clip:text]:bg-cover supports-[background-clip:text]:bg-center supports-[background-clip:text]:bg-clip-text supports-[background-clip:text]:text-transparent',
+          )}
         >
           {site.name}
         </span>

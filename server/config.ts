@@ -1,4 +1,5 @@
 import { resolve } from 'node:path'
+import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS } from './limits.ts'
 
 const env = process.env
 
@@ -15,13 +16,13 @@ export const config = {
   distDir: resolve(env.DIST_DIR ?? 'dist'),
   ordersFile: resolve(env.ORDERS_FILE ?? 'data/orders.jsonl'),
   /** Сколько дней хранить заявки (в политике конфиденциальности — не дольше 3 лет). */
-  ordersRetentionDays: Math.max(1, Number(env.ORDERS_RETENTION_DAYS) || 3 * 365),
+  ordersRetentionDays: Math.max(1, Number(env.ORDERS_RETENTION_DAYS) || ORDER_RETENTION_DAYS),
   telegram: {
     token: env.TELEGRAM_BOT_TOKEN ?? '',
     chatId: env.TELEGRAM_CHAT_ID ?? '',
   },
   /** Количество заявок с одного IP за окно. */
-  rateLimit: { max: 5, windowMs: 10 * 60_000, maxKeys: 10_000 },
+  rateLimit: { ...ORDER_RATE_LIMIT, maxKeys: 10_000 },
 } as const
 
 export const telegramConfigured = () => Boolean(config.telegram.token && config.telegram.chatId)

@@ -42,8 +42,13 @@ export const orderRequestSchema = z.object({
   city: z.string().trim().max(80, 'Слишком длинное название'),
   comment: z.string().trim().max(1000, 'Комментарий слишком длинный'),
   items: z.array(orderItemSchema).min(1, 'Корзина пуста').max(30),
-  /** Согласие с офертой и политикой обработки персональных данных — сервер его требует и сохраняет. */
-  consent: z.literal(true, { error: 'Нужно согласие с офертой и на обработку персональных данных' }),
+  /** Принятие публичной оферты (договор купли-продажи). */
+  offerAccepted: z.literal(true, { error: 'Нужно принять условия оферты' }),
+  /**
+   * Согласие на обработку персональных данных — отдельно от оферты: с 01.09.2025 (156-ФЗ, ч. 4 ст. 9 152-ФЗ)
+   * его нельзя совмещать с другими документами одной галочкой. Сервер требует и сохраняет оба.
+   */
+  consent: z.literal(true, { error: 'Нужно согласие на обработку персональных данных' }),
 }).superRefine((v, ctx) => {
   if (v.contactMethod === 'telegram' && !v.telegram) {
     ctx.addIssue({ code: 'custom', path: ['telegram'], message: 'Укажите ник, чтобы мы написали вам в Telegram' })
@@ -51,7 +56,7 @@ export const orderRequestSchema = z.object({
 })
 
 /** Поля формы, ошибки по которым показываются под полем. Остальные — общей ошибкой формы. */
-export const ORDER_FORM_FIELDS = ['name', 'phone', 'telegram', 'contactMethod', 'city', 'comment', 'consent'] as const
+export const ORDER_FORM_FIELDS = ['name', 'phone', 'telegram', 'contactMethod', 'city', 'comment', 'offerAccepted', 'consent'] as const
 
 export type OrderRequest = z.input<typeof orderRequestSchema>
 export type OrderRequestParsed = z.output<typeof orderRequestSchema>

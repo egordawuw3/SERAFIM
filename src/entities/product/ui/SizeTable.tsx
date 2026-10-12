@@ -7,7 +7,7 @@ import type { Measurement } from '../model/types'
 export function SizeTable({ measurements, caption }: { measurements: Measurement[]; caption: string }) {
   return (
     <table className="w-full max-w-[340px] border-collapse text-left">
-      <caption className="mb-2 text-left uppercase tracking-[0.12em]">{caption}</caption>
+      <caption className="mb-2 text-left font-medium uppercase tracking-[0.12em] text-ink">{caption}</caption>
       <thead>
         <tr className="border-b border-ink/20 text-ink/70">
           <th scope="col" className="py-1.5 font-normal">Размер</th>
@@ -18,9 +18,9 @@ export function SizeTable({ measurements, caption }: { measurements: Measurement
       <tbody>
         {measurements.map((m) => (
           <tr key={m.size} className="border-b border-ink/10">
-            <th scope="row" className="py-1.5 font-normal">{m.size}</th>
-            <td className="py-1.5">{m.length}</td>
-            <td className="py-1.5">{m.width}</td>
+            <th scope="row" className="py-1.5 font-normal text-ink">{m.size}</th>
+            <td className="py-1.5 text-ink">{m.length}</td>
+            <td className="py-1.5 text-ink">{m.width}</td>
           </tr>
         ))}
       </tbody>

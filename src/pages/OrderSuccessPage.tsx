@@ -14,7 +14,7 @@ export function OrderSuccessPage() {
           Если вы оформили заказ — мы свяжемся с вами в течение рабочего дня. Номер заявки был на этой странице сразу после
           отправки.
         </p>
-        <Link to="/catalog" className="link-hover text-[12px] uppercase tracking-[0.15em]">
+        <Link to="/#catalog" className="link-hover text-[12px] uppercase tracking-[0.15em]">
           Перейти в каталог →
         </Link>
       </section>
@@ -29,7 +29,7 @@ export function OrderSuccessPage() {
         Сумма — {formatPrice(order.total)} без учёта доставки. Мы свяжемся с вами в течение рабочего дня, уточним
         детали и пришлём ссылку на оплату.
       </p>
-      <Link to="/catalog" className="link-hover mt-10 text-[12px] uppercase tracking-[0.15em]">
+      <Link to="/#catalog" className="link-hover mt-10 text-[12px] uppercase tracking-[0.15em]">
         Вернуться в каталог →
       </Link>
     </section>

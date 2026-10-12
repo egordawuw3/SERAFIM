@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useState, type FormEvent, type ReactNode } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { OrderSubmitError, submitOrder } from '@/entities/order/api/orderApi'
 import {
@@ -13,8 +13,8 @@ import { cn } from '@/shared/lib/cn'
 import { formatPrice } from '@/shared/lib/format'
 import { Field, Input, Textarea } from '@/shared/ui/Field'
 
-type FormValues = Omit<OrderRequest, 'items' | 'consent'>
-type FieldErrors = Partial<Record<keyof FormValues | 'consent' | 'form', string>>
+type FormValues = Omit<OrderRequest, 'items' | 'consent' | 'offerAccepted'>
+type FieldErrors = Partial<Record<keyof FormValues | 'consent' | 'offerAccepted' | 'form', string>>
 
 const initialValues: FormValues = {
   name: '',
@@ -37,6 +37,8 @@ export function CheckoutPage() {
   const clearCart = useCart((s) => s.clear)
 
   const [values, setValues] = useState(initialValues)
+  // Две независимые галочки: принятие оферты и отдельное согласие на обработку персональных данных (152-ФЗ).
+  const [offerAccepted, setOfferAccepted] = useState(false)
   const [consent, setConsent] = useState(false)
   const [honeypot, setHoneypot] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
@@ -56,6 +58,7 @@ export function CheckoutPage() {
     const payload: OrderRequest = {
       ...values,
       // Отправится только при отмеченной галочке: без неё форма останавливается ниже, до запроса.
+      offerAccepted: true,
       consent: true,
       items: items.map(({ productId, colorId, size, qty }) => ({ productId, colorId, size, qty })),
     }
@@ -64,11 +67,12 @@ export function CheckoutPage() {
     if (!parsed.success) {
       for (const issue of parsed.error.issues) {
         const field = String(issue.path[0])
-        const key = (field in initialValues || field === 'consent' ? field : 'form') as keyof FieldErrors
+        const key = (field in initialValues || field === 'consent' || field === 'offerAccepted' ? field : 'form') as keyof FieldErrors
         found[key] ??= issue.message
       }
     }
-    if (!consent) found.consent = 'Нужно согласие с офертой и на обработку персональных данных'
+    if (!offerAccepted) found.offerAccepted = 'Нужно принять условия оферты'
+    if (!consent) found.consent = 'Нужно согласие на обработку персональных данных'
     if (Object.keys(found).length) {
       setErrors(found)
       requestAnimationFrame(() => document.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus())
@@ -94,7 +98,7 @@ export function CheckoutPage() {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-32 text-center font-mono">
         <h1 className="font-sans text-2xl font-light uppercase tracking-widest">Корзина пуста</h1>
-        <Link to="/catalog" className="link-hover text-[12px] uppercase tracking-[0.15em]">
+        <Link to="/#catalog" className="link-hover text-[12px] uppercase tracking-[0.15em]">
           Перейти в каталог →
         </Link>
       </section>
@@ -213,29 +217,42 @@ export function CheckoutPage() {
           </div>
           <p className="mt-1 pb-5 text-[11px] text-ink/70">Доставку рассчитаем и согласуем с вами отдельно</p>
 
-          <label className="flex cursor-pointer items-start gap-2.5 text-[11px] leading-relaxed text-ink/70">
-            <input
-              type="checkbox"
-              className="mt-0.5 accent-ink"
+          {/*
+           * Согласие на обработку персональных данных — отдельной галочкой со ссылкой на отдельный документ:
+           * с 01.09.2025 его нельзя совмещать с офертой или политикой в одном чекбоксе (156-ФЗ).
+           */}
+          <div className="space-y-3">
+            <Consent
+              checked={offerAccepted}
+              error={errors.offerAccepted}
+              onChange={(v) => {
+                setOfferAccepted(v)
+                setErrors((er) => ({ ...er, offerAccepted: undefined }))
+              }}
+            >
+              Принимаю условия{' '}
+              <Link to="/info/offer" target="_blank" className="underline underline-offset-2 hover:text-ink">
+                публичной оферты
+              </Link>
+            </Consent>
+            <Consent
               checked={consent}
-              onChange={(e) => {
-                setConsent(e.target.checked)
+              error={errors.consent}
+              onChange={(v) => {
+                setConsent(v)
                 setErrors((er) => ({ ...er, consent: undefined }))
               }}
-              aria-invalid={!!errors.consent || undefined}
-            />
-            <span>
-              Соглашаюсь с{' '}
-              <Link to="/info/offer" target="_blank" className="underline underline-offset-2 hover:text-ink">
-                офертой
+            >
+              Даю{' '}
+              <Link to="/info/consent" target="_blank" className="underline underline-offset-2 hover:text-ink">
+                согласие на обработку персональных данных
               </Link>{' '}
-              и{' '}
+              в соответствии с{' '}
               <Link to="/info/privacy" target="_blank" className="underline underline-offset-2 hover:text-ink">
-                политикой обработки персональных данных
+                политикой конфиденциальности
               </Link>
-            </span>
-          </label>
-          {errors.consent && <p role="alert" className="mt-2 text-[11px] text-red-700">{errors.consent}</p>}
+            </Consent>
+          </div>
           {errors.form && <p role="alert" className="mt-4 text-[11px] text-red-700">{errors.form}</p>}
 
           <button
@@ -248,5 +265,37 @@ export function CheckoutPage() {
         </aside>
       </form>
     </section>
+  )
+}
+
+function Consent({
+  checked,
+  error,
+  onChange,
+  children,
+}: {
+  checked: boolean
+  error?: string
+  onChange: (value: boolean) => void
+  children: ReactNode
+}) {
+  return (
+    <div>
+      <label className="flex cursor-pointer items-start gap-2.5 text-[11px] leading-relaxed text-ink/70">
+        <input
+          type="checkbox"
+          className="mt-0.5 accent-ink"
+          checked={checked}
+          onChange={(e) => onChange(e.target.checked)}
+          aria-invalid={!!error || undefined}
+        />
+        <span>{children}</span>
+      </label>
+      {error && (
+        <p role="alert" className="mt-1.5 text-[11px] text-red-700">
+          {error}
+        </p>
+      )}
+    </div>
   )
 }

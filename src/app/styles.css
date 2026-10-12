@@ -13,6 +13,55 @@
   src: url('/fonts/tinos-700-serafim.woff2') format('woff2');
 }
 
+/*
+ * Облегчённые файлы основных шрифтов вместо части наборов fontsource (main.tsx).
+ * Эти @font-face объявлены позже fontsource, а при пересечении unicode-range браузер берёт последний объявленный —
+ * исходные файлы latin и latin-ext не скачиваются вовсе.
+ *  - latin-basic: латиница fontsource без букв с диакритикой (à, ñ, ö… на сайте нет): Inter 48 → 34 КБ,
+ *    JetBrains Mono 40 → 35 КБ. unicode-range — как у fontsource latin, чтобы полностью его заменить;
+ *    редкий символ, которого нет в файле, браузер возьмёт из системного шрифта.
+ *  - ruble: знак ₽ во fontsource лежит в latin-ext, и из-за цен на каждой странице браузер качал этот набор целиком
+ *    (83 КБ Inter + 15 КБ JetBrains Mono ради одного символа). Здесь — файл ~1 КБ.
+ * Пересобрать (так же для jetbrains-mono):
+ *   python3 -m fontTools.subset node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2 --flavor=woff2
+ *     --unicodes=U+0020-007E,U+00A0-00BF,U+00D7,U+2010-2027,U+2030-203A,U+20AC,U+2116,U+2122,U+2212
+ *     --output-file=public/fonts/inter-latin-basic.woff2
+ *   python3 -m fontTools.subset node_modules/@fontsource-variable/inter/files/inter-latin-ext-wght-normal.woff2 --flavor=woff2
+ *     --unicodes=U+20BD --layout-features='' --output-file=public/fonts/inter-ruble.woff2
+ */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-latin-basic.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-weight: 100 900;
+  font-display: swap;
+  src: url('/fonts/inter-ruble.woff2') format('woff2-variations');
+  unicode-range: U+20BD;
+}
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-latin-basic.woff2') format('woff2-variations');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+@font-face {
+  font-family: 'JetBrains Mono Variable';
+  font-style: normal;
+  font-weight: 100 800;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono-ruble.woff2') format('woff2-variations');
+  unicode-range: U+20BD;
+}
+
 @theme {
   /* Тёплый бежевый, как крафт-бумага (выбран клиентом 2026-10-09). */
   --color-paper: #ece4d4;

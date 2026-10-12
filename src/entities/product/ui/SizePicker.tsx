@@ -19,7 +19,7 @@ export function SizePicker({ product, color, value, onChange }: Props) {
   const name = useId()
   return (
     <fieldset>
-      <legend className="mb-2">Размер</legend>
+      <legend className="mb-2 text-ink/70">Размер</legend>
       <div className="flex flex-wrap gap-2">
         {product.sizes.map((s) => {
           const available = isSizeAvailable(color, s)

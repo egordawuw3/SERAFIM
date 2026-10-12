@@ -13,7 +13,7 @@ export function ProductModal() {
   const { slug = '' } = useParams()
   const navigate = useNavigate()
   const product = getProductBySlug(slug)
-  if (!product) return <Navigate to="/catalog" replace />
+  if (!product) return <Navigate to="/" replace />
   return <ProductSheet product={product} close={() => navigate(-1)} />
 }
 

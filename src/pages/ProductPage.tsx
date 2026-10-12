@@ -13,8 +13,8 @@ export function ProductPage() {
   return (
     <div className="mx-3 mb-8 rounded-lg bg-white md:mx-8">
       <div className="px-4 pt-5 md:px-6">
-        <Link to="/catalog" className="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink/70 hover:text-ink">
-          <ArrowLeft className="h-3.5 w-3.5" /> Каталог
+        <Link to="/#catalog" className="inline-flex items-center gap-1.5 font-mono text-[11px] text-ink/70 hover:text-ink">
+          <ArrowLeft className="h-3.5 w-3.5" /> Все вещи
         </Link>
       </div>
       <ProductView product={product} />

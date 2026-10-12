@@ -1,0 +1,40 @@
+/*
+ * Cloudflare Workers: сайт + API + база заявок D1. Выкладка — Workers Builds из GitHub
+ * (команды сборки и выкладки — в DEPLOY.md) или вручную: npm run cf:deploy.
+ */
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "serafim",
+  "main": "server/worker.ts",
+  "compatibility_date": "2026-09-01",
+  // Временный адрес serafim.<аккаунт>.workers.dev — пока не подключён домен; после подключения выключить (false).
+  "workers_dev": true,
+  // Без отдельных публичных адресов у каждой версии: сайт доступен только там, где мы его опубликовали.
+  "preview_urls": false,
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS",
+    // Неизвестный адрес → dist/404.html с кодом 404; /about → /about/index.html без редиректа на /about/ (canonical — без слэша).
+    "not_found_handling": "404-page",
+    "html_handling": "drop-trailing-slash",
+    // Код запускается только для API и редиректа каталога — остальное Cloudflare отдаёт сам, бесплатно и без лимитов.
+    "run_worker_first": ["/api/*", "/catalog"]
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "serafim",
+      // TODO: id из `npx wrangler d1 create serafim` (или из панели Cloudflare → D1).
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    }
+  ],
+  // Чистка устаревших заявок раз в сутки (03:00 UTC).
+  "triggers": { "crons": ["0 3 * * *"] },
+  // Логи Worker в панели Cloudflare (ошибки отправки в Telegram и т.п.).
+  "observability": { "enabled": true },
+  "vars": {
+    // После подключения домена: "https://домен" — тогда запросы с других Origin к API отклоняются.
+    "SITE_ORIGIN": ""
+  }
+}

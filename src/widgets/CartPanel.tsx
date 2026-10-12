@@ -37,7 +37,7 @@ export function CartPanel() {
           <div className="flex flex-1 flex-col items-center justify-center gap-6 px-6 text-center">
             <p className="text-ink/70">В корзине пока пусто</p>
             <Link
-              to="/catalog"
+              to="/#catalog"
               onClick={onClose}
               className="rounded-lg border border-ink px-4 py-2 uppercase tracking-[0.12em] transition-colors hover:bg-ink hover:text-paper"
             >

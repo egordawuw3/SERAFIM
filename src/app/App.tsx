@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Route, Routes, useLocation, type Location } from 'react-router'
 import { useCart } from '@/features/cart/model/store'
-import { CatalogPage } from '@/pages/CatalogPage'
+import { CatalogRedirect } from '@/pages/CatalogRedirect'
 import { HomePage } from '@/pages/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
 import { registerPrefetch } from '@/shared/lib/prefetch'
@@ -45,7 +45,8 @@ export function App() {
       <Routes location={background ?? location}>
         <Route element={<Layout />}>
           <Route index element={<HomePage />} />
-          <Route path="catalog" element={<CatalogPage />} />
+          {/* Отдельной страницы каталога больше нет — он на главной. Старые ссылки (с фильтрами) ведут туда. */}
+          <Route path="catalog" element={<CatalogRedirect />} />
           <Route path="product/:slug" element={<ProductPage />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="checkout/success" element={<OrderSuccessPage />} />

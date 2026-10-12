@@ -6,6 +6,7 @@ export const INFO_TITLES: Record<string, string> = {
   'payment-and-returns': 'Оплата, доставка и возврат',
   offer: 'Публичная оферта',
   privacy: 'Политика обработки персональных данных',
+  consent: 'Согласие на обработку персональных данных',
   /** Старый адрес оферты. */
   documents: 'Публичная оферта',
 }

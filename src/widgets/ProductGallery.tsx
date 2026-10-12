@@ -94,23 +94,26 @@ export function ProductGallery({ product, color }: Props) {
         </p>
       </div>
 
-      <div className="mx-auto mt-6 flex w-full max-w-[640px] gap-2 overflow-x-auto pb-1">
-        {images.map((img, i) => (
-          <button
-            key={img.src}
-            type="button"
-            onClick={() => go(i)}
-            aria-label={`Показать фото ${i + 1}: ${alts[i]}`}
-            aria-current={i === index}
-            className={cn(
-              'h-14 w-12 shrink-0 overflow-hidden border transition-colors md:h-16 md:w-14',
-              i === index ? 'border-ink/60' : 'border-transparent opacity-70 hover:opacity-100',
-            )}
-          >
-            <ProductPhoto image={img} alt="" sizes={THUMB_SIZES} className="h-full w-full object-cover" />
-          </button>
-        ))}
-      </div>
+      {/* Одно фото — миниатюра того же кадра ничего не даёт. */}
+      {count > 1 && (
+        <div className="mx-auto mt-6 flex w-full max-w-[640px] gap-2 overflow-x-auto pb-1">
+          {images.map((img, i) => (
+            <button
+              key={img.src}
+              type="button"
+              onClick={() => go(i)}
+              aria-label={`Показать фото ${i + 1}: ${alts[i]}`}
+              aria-current={i === index}
+              className={cn(
+                'h-14 w-12 shrink-0 overflow-hidden border transition-colors md:h-16 md:w-14',
+                i === index ? 'border-ink/60' : 'border-transparent opacity-70 hover:opacity-100',
+              )}
+            >
+              <ProductPhoto image={img} alt="" sizes={THUMB_SIZES} className="h-full w-full object-cover" />
+            </button>
+          ))}
+        </div>
+      )}
     </section>
   )
 }

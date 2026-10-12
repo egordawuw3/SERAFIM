@@ -147,15 +147,6 @@ export function routeMeta(pathname: string): PageMeta {
     })
   }
 
-  if (path === '/catalog') {
-    return base({
-      title: `Каталог — худи, регбийки, рюкзаки | ${BRAND}`,
-      description: `Каталог ${BRAND}: худи, регбийки и аксессуары с принтами. Кроп-фит, производство в России, доставка СДЭК по всей России.`,
-      path,
-      jsonLd: [breadcrumbs([home, { name: 'Каталог', path }]), itemList(getProducts())],
-    })
-  }
-
   const productSlug = path.match(/^\/product\/([^/]+)$/)?.[1]
   if (productSlug) {
     const product = getProductBySlug(productSlug)
@@ -169,7 +160,7 @@ export function routeMeta(pathname: string): PageMeta {
       image: rasterImage(product.colors[0].images[0]) ?? DEFAULT_IMAGE,
       jsonLd: [
         productJsonLd(product, path),
-        breadcrumbs([home, { name: 'Каталог', path: '/catalog' }, { name: product.name, path }]),
+        breadcrumbs([home, { name: product.name, path }]),
       ],
     })
   }

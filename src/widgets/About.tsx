@@ -27,7 +27,7 @@ export function About() {
           <h1 className="mt-6 text-[clamp(1.9rem,3.6vw,3.25rem)] font-light leading-[1.08] tracking-[-0.035em]">
             Мы делаем вещи медленно — <span className="text-ink/70">так же, как растёт лес.</span>
           </h1>
-          <p className="mt-8 max-w-md text-[15px] leading-[1.75] text-ink/75">
+          <p className="mt-8 max-w-md text-[15px] leading-[1.75] text-ink/85">
             Хлопок в основе, свободный кроп-фит и принты со смыслом. Шьём в России, каждая модель выходит небольшим
             тиражом.
           </p>
@@ -40,7 +40,7 @@ export function About() {
             ))}
           </ul>
 
-          <Link to="/catalog" className="group mt-12 flex w-fit items-center gap-4 text-[10px] font-medium uppercase tracking-[0.25em]">
+          <Link to="/#catalog" className="group mt-12 flex w-fit items-center gap-4 text-[10px] font-medium uppercase tracking-[0.25em]">
             <span className="link-hover">Смотреть коллекцию</span>
             <ArrowRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
           </Link>

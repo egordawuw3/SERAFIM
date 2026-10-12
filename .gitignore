@@ -32,3 +32,7 @@ photos/
 
 # Тяжёлый исходник старого главного фото (на сайте не используется)
 design/hero-original.jpg
+
+# Cloudflare: локальная база D1 и кеш wrangler (в базе — заявки с персональными данными)
+.wrangler/
+.dev.vars*

@@ -18,6 +18,8 @@ RUN npm ci --omit=dev && npm cache clean --force
 COPY --from=build /app/dist ./dist
 COPY server ./server
 COPY src/entities ./src/entities
+# Реквизиты и редакция документов — сервер сохраняет их вместе с согласием покупателя.
+COPY src/shared/config ./src/shared/config
 # Каталог для заявок должен принадлежать node, иначе том создастся от root и запись упадёт с EACCES.
 RUN mkdir -p -m 700 /app/data && chown node:node /app/data
 USER node

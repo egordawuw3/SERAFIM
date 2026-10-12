@@ -7,7 +7,8 @@ import { useScrolled } from '@/shared/lib/useScrolled'
 import { Logo } from '@/shared/ui/Logo'
 import { useBannerInView } from '@/shared/lib/bannerVisibility'
 
-const linkCls = 'link-hover transition-colors duration-300 hover:text-ink'
+// min-h-6 — зона касания не меньше 24 px (WCAG 2.5.8).
+const linkCls = 'link-hover inline-flex min-h-6 items-center transition-colors duration-300 hover:text-ink'
 
 export function Header() {
   const count = useCart((s) => countItems(s.items))
@@ -26,11 +27,9 @@ export function Header() {
       )}
     >
       <div className="relative flex items-center justify-between px-4 md:px-12">
-        <nav className="flex items-center gap-6 text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70 md:gap-10" aria-label="Основное меню">
-          <NavLink to="/catalog" className={({ isActive }) => cn(linkCls, isActive && 'text-ink')}>
-            Каталог
-          </NavLink>
-          <NavLink to="/about" className={({ isActive }) => cn(linkCls, 'hidden sm:inline', isActive && 'text-ink')}>
+        {/* Каталог — на главной (туда ведёт логотип), поэтому в меню только «О бренде». */}
+        <nav className="flex items-center text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70" aria-label="Основное меню">
+          <NavLink to="/about" className={({ isActive }) => cn(linkCls, isActive && 'text-ink')}>
             О бренде
           </NavLink>
         </nav>

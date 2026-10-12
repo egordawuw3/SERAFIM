@@ -13,7 +13,9 @@
     "test": "vitest run",
     "preview": "vite preview",
     "images": "node scripts/generate-placeholders.ts",
-    "photos": "node scripts/import-photos.ts"
+    "photos": "node scripts/import-photos.ts",
+    "cf:dev": "wrangler dev",
+    "cf:deploy": "wrangler d1 migrations apply serafim --remote && wrangler deploy"
   },
   "dependencies": {
     "@fontsource-variable/inter": "^5.3.0",
@@ -39,7 +41,8 @@
     "tailwindcss": "^4.3.3",
     "typescript": "~6.0.2",
     "vite": "^8.3.0",
-    "vitest": "^5.0.3"
+    "vitest": "^5.0.3",
+    "wrangler": "^4.146.0"
   },
   "engines": {
     "node": ">=22.18"
@@ -49,6 +52,9 @@
       "sharp": "$sharp",
       "lodash": "^4.18.0",
       "zod": "^3.25.0"
+    },
+    "miniflare": {
+      "sharp": "$sharp"
     }
   }
 }

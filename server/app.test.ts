@@ -21,6 +21,7 @@ const validOrder = {
   contactMethod: 'telegram',
   city: 'Москва',
   comment: '',
+  offerAccepted: true,
   consent: true,
   items: [{ productId: 'p2', colorId: 'grey', size: 'M', qty: 2 }],
 }
@@ -73,11 +74,18 @@ describe('POST /api/orders', () => {
   it('stores consent time and requires consent', async () => {
     const saved = JSON.parse(readFileSync(ordersFile, 'utf8').trim().split('\n')[0])
     expect(saved.consentAt).toBe(saved.createdAt)
+    expect(saved.offerAcceptedAt).toBe(saved.createdAt)
+    expect(saved.documentsVersion).toBeTruthy()
     expect(saved.customer).not.toHaveProperty('consent')
+    expect(saved.customer).not.toHaveProperty('offerAccepted')
 
-    const res = await post({ ...validOrder, consent: false }, '2.2.2.1')
-    expect(res.status).toBe(400)
-    expect(((await res.json()) as { fields: Record<string, string> }).fields).toHaveProperty('consent')
+    // Согласие на обработку ПД и принятие оферты — независимые: без любого из них заказ не принимается.
+    const noConsent = await post({ ...validOrder, consent: false }, '2.2.2.1')
+    expect(noConsent.status).toBe(400)
+    expect(((await noConsent.json()) as { fields: Record<string, string> }).fields).toHaveProperty('consent')
+    const noOffer = await post({ ...validOrder, offerAccepted: false }, '2.2.2.3')
+    expect(noOffer.status).toBe(400)
+    expect(((await noOffer.json()) as { fields: Record<string, string> }).fields).toHaveProperty('offerAccepted')
   })
 
   it('does not leak validator internals for malformed input', async () => {
@@ -153,7 +161,9 @@ describe('formatOrderMessage', () => {
     const text = formatOrderMessage({
       number: 'SRF-1',
       createdAt: '',
+      offerAcceptedAt: '',
       consentAt: '',
+      documentsVersion: '',
       customer: { ...validOrder, telegram: '', comment: '<b>hi</b> & bye', contactMethod: 'phone' },
       lines: [{ name: 'Худи', color: 'Синий', size: 'M', qty: 1, price: 1000 }],
       total: 1000,
@@ -186,7 +196,9 @@ describe('formatOrderMessage length', () => {
     const text = formatOrderMessage({
       number: 'SRF-1',
       createdAt: '',
+      offerAcceptedAt: '',
       consentAt: '',
+      documentsVersion: '',
       customer: { ...validOrder, contactMethod: 'telegram', comment: 'x'.repeat(1000) },
       lines: Array.from({ length: 30 }, (_, i) => ({
         name: `Очень длинное название товара номер ${i} `.repeat(3),
@@ -199,5 +211,17 @@ describe('formatOrderMessage length', () => {
     })
     expect(text.length).toBeLessThanOrEqual(4096)
     expect(text.endsWith('</i>')).toBe(true)
+  })
+})
+
+describe('rateLimitKey', () => {
+  it('groups IPv6 addresses by /64 and keeps IPv4 as is', async () => {
+    const { rateLimitKey } = await import('./limits.ts')
+    expect(rateLimitKey('203.0.113.7')).toBe('203.0.113.7')
+    expect(rateLimitKey('::ffff:203.0.113.7')).toBe('203.0.113.7')
+    expect(rateLimitKey('2001:db8:0:1:aaaa::1')).toBe('2001:db8:0:1::/64')
+    expect(rateLimitKey('2001:0DB8:0000:0001:ffff:ffff:ffff:ffff')).toBe('2001:db8:0:1::/64')
+    expect(rateLimitKey('2001:db8::1')).toBe('2001:db8:0:0::/64')
+    expect(rateLimitKey('::1')).toBe('0:0:0:0::/64')
   })
 })
