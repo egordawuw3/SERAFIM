@@ -24,8 +24,7 @@
     {
       "binding": "DB",
       "database_name": "serafim",
-      // TODO: id из `npx wrangler d1 create serafim` (или из панели Cloudflare → D1).
-      "database_id": "00000000-0000-0000-0000-000000000000",
+      "database_id": "6ed9f7db-0e7d-4426-af4e-d6aae8863d45",
       "migrations_dir": "migrations"
     }
   ],
