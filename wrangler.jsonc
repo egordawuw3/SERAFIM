@@ -7,8 +7,13 @@
   "name": "serafim",
   "main": "server/worker.ts",
   "compatibility_date": "2026-09-01",
-  // Временный адрес serafim.<аккаунт>.workers.dev — пока не подключён домен; после подключения выключить (false).
-  "workers_dev": true,
+  // Сайт живёт на serafim6s.ru; временный адрес *.workers.dev выключен, чтобы не было дубля сайта.
+  "workers_dev": false,
+  // Свои домены: DNS-записи и сертификат HTTPS Cloudflare создаёт сам. www перенаправляется на основной адрес правилом в панели.
+  "routes": [
+    { "pattern": "serafim6s.ru", "custom_domain": true },
+    { "pattern": "www.serafim6s.ru", "custom_domain": true }
+  ],
   // Без отдельных публичных адресов у каждой версии: сайт доступен только там, где мы его опубликовали.
   "preview_urls": false,
   "assets": {
@@ -33,7 +38,7 @@
   // Логи Worker в панели Cloudflare (ошибки отправки в Telegram и т.п.).
   "observability": { "enabled": true },
   "vars": {
-    // После подключения домена: "https://домен" — тогда запросы с других Origin к API отклоняются.
-    "SITE_ORIGIN": ""
+    // Запросы к API с других адресов (Origin) отклоняются.
+    "SITE_ORIGIN": "https://serafim6s.ru"
   }
 }
