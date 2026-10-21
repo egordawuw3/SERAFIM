@@ -6,7 +6,7 @@ import type { Category, ImageView, Measurement, Product, ProductColor, ProductIm
  * Каталог SERAFIM (данные от клиента, 10.10.2026). Когда появится бэкенд, этот файл заменяется
  * запросом к API в ../api/productApi.ts — компоненты менять не придётся.
  *
- * TODO(клиент): размеры, материал и уход рюкзака; вес и размер упаковки всех вещей (для СДЭК); фото сзади.
+ * TODO(клиент): материал и уход рюкзака; вес посылки каждой вещи (для СДЭК, пока — значение по умолчанию); фото сзади.
  * Фото: настоящие — AVIF/WebP в нескольких ширинах из `npm run photos` (см. design/product-prompts.md),
  * для цветов без фото — SVG-заглушки из `npm run images`.
  */
@@ -162,6 +162,7 @@ export const products: Product[] = [
     sizes: ['ONE SIZE'],
     country: MADE_IN,
     shippingNote: SHIPPING_IN_STOCK,
-    details: ['Принт'],
+    details: ['Размер: 30 × 40 × 13 см', 'Принт'],
+    dimsCm: [40, 30, 13],
   }),
 ]

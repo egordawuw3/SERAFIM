@@ -6,6 +6,7 @@ import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
 import { ColorSelect } from '@/entities/product/ui/ColorSelect'
 import { SizePicker } from '@/entities/product/ui/SizePicker'
+import { FitGuide } from '@/entities/product/ui/FitGuide'
 import { SizeTable } from '@/entities/product/ui/SizeTable'
 import { toCartItem } from '@/features/cart/lib/toCartItem'
 import { useCart } from '@/features/cart/model/store'
@@ -96,7 +97,9 @@ export function ProductView({ product }: { product: Product }) {
             ))}
           </section>
 
-          {product.measurements && <SizeTable measurements={product.measurements} caption="Размерная сетка" />}
+          <FitGuide product={product} />
+
+          {product.measurements && <SizeTable measurements={product.measurements} caption="Замеры изделия" />}
 
           {product.care && (
             <section aria-labelledby="product-care">
