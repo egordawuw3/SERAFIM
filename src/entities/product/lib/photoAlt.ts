@@ -4,6 +4,7 @@ const VIEW_LABEL: Record<ImageView, string> = {
   front: 'вид спереди',
   back: 'вид сзади',
   detail: 'деталь',
+  model: 'на модели',
 }
 
 /**

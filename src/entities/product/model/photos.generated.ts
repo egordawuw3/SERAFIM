@@ -1,18 +1,22 @@
 // Сгенерировано scripts/import-photos.ts (npm run photos) — не редактировать вручную.
 export const productPhotos: Record<string, string[]> = {
   "i-will-attract-rugby/blue": [
-    "front"
+    "front",
+    "model"
   ],
   "the-only-way-hoodie/grey": [
-    "front"
+    "front",
+    "model"
   ],
   "if-she-not-from-god-hoodie/grey": [
     "front"
   ],
   "salvation-hoodie/grey": [
-    "front"
+    "front",
+    "model"
   ],
   "jesus-backpack/black": [
-    "front"
+    "front",
+    "model"
   ]
 }

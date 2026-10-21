@@ -1,5 +1,5 @@
 /*
- * Импорт фото товаров: photos/<slug>/<цвет>-front.(png|jpg|webp) и -back →
+ * Импорт фото товаров: photos/<slug>/<цвет>-front.(png|jpg|webp), -back и -model (на модели) →
  * public/products/<slug>/<цвет>-front-{480,800,1200,1600}.{avif,webp} — для адаптивной загрузки (srcset).
  *
  * Фото можно класть прямо с телефона: фон вырезается локальной нейросетью (бесплатно, без интернета —
@@ -29,10 +29,10 @@ const LARGEST = PHOTO_WIDTHS[PHOTO_WIDTHS.length - 1]
 const QUALITY = { avif: 55, webp: 80 } as const
 /** Какую долю кадра может занять вещь — остальное поля. */
 const FILL = { w: 0.84, h: 0.86 }
-const VIEWS = ['front', 'back'] as const
+const VIEWS = ['front', 'back', 'model'] as const
 const INPUT_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
-const FILE = /^([a-z0-9-]+)-(front|back)$/
+const FILE = /^([a-z0-9-]+)-(front|back|model)$/
 
 // sharp объявлен через `export =`: его типы берём из самой функции.
 type Image = ReturnType<typeof sharp>
@@ -121,7 +121,7 @@ if (existsSync(IN)) {
       const color = match && product.colors.find((c) => c.id === match[1])
       if (!match || !color) {
         problems.push(
-          `photos/${slug}/${file}: ожидается <цвет>-front или <цвет>-back, цвета: ${product.colors.map((c) => c.id).join(', ')}`,
+          `photos/${slug}/${file}: ожидается <цвет>-front, <цвет>-back или <цвет>-model, цвета: ${product.colors.map((c) => c.id).join(', ')}`,
         )
         continue
       }
