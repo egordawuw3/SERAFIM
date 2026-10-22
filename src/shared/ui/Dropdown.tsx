@@ -27,7 +27,7 @@ export function Dropdown({ label, count = 0, children, align = 'left' }: Props) 
         aria-expanded={open}
         aria-controls={panelId}
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] transition-opacity hover:opacity-60 md:text-[14px]"
+        className="tap-target flex items-center gap-1.5 whitespace-nowrap font-mono text-[13px] transition-opacity hover:opacity-60 md:text-[14px]"
       >
         {label}
         {count > 0 && <span className="text-ink/70">· {count}</span>}

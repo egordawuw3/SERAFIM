@@ -233,7 +233,7 @@ export function CheckoutPage() {
                       </p>
                       <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                         <QtyStepper value={i.qty} onChange={(n) => setItemQty(key, n)} />
-                        <button type="button" onClick={() => removeItem(key)} className="link-hover text-ink/70 hover:text-ink">
+                        <button type="button" onClick={() => removeItem(key)} className="link-hover tap-target text-ink/70 hover:text-ink">
                           Удалить
                         </button>
                       </div>
@@ -647,10 +647,11 @@ function Consent({
 }) {
   return (
     <div>
-      <label className="flex cursor-pointer items-start gap-2.5 text-[11px] leading-relaxed text-ink/70">
+      {/* Не ниже 44 px: галочки стоят вплотную, удобно попасть пальцем. */}
+      <label className="flex min-h-11 cursor-pointer items-center gap-2.5 text-[11px] leading-relaxed text-ink/70">
         <input
           type="checkbox"
-          className="mt-0.5 accent-ink"
+          className="accent-ink"
           checked={checked}
           onChange={(e) => onChange(e.target.checked)}
           aria-invalid={!!error || undefined}

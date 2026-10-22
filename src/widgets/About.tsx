@@ -40,7 +40,7 @@ export function About() {
             ))}
           </ul>
 
-          <Link to="/#catalog" className="group mt-12 flex w-fit items-center gap-4 text-[10px] font-medium uppercase tracking-[0.25em]">
+          <Link to="/#catalog" className="tap-target group mt-12 flex w-fit items-center gap-4 text-[10px] font-medium uppercase tracking-[0.25em]">
             <span className="link-hover">Смотреть коллекцию</span>
             <ArrowRight className="h-4 w-4 transition-transform duration-500 group-hover:translate-x-2" />
           </Link>

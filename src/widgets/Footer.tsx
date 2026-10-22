@@ -7,13 +7,14 @@ function Group({ title, children }: { title: string; children: ReactNode }) {
   return (
     <div>
       <p className="mb-4 text-[12px] uppercase tracking-[0.1em] text-ink/70">{title} →</p>
-      <div className="flex flex-wrap gap-x-6 gap-y-2 text-[15px] text-ink md:text-[16px]">{children}</div>
+      {/* Между строками 20 px: с высотой ссылки 24 px шаг 44 px — зоны нажатия соседних ссылок не перекрываются. */}
+      <div className="flex flex-wrap gap-x-6 gap-y-5 text-[15px] text-ink md:text-[16px]">{children}</div>
     </div>
   )
 }
 
 // min-h-6 — зона касания не меньше 24 px (WCAG 2.5.8).
-const linkCls = 'link-hover inline-flex min-h-6 items-center transition-opacity hover:opacity-60'
+const linkCls = 'link-hover tap-target inline-flex min-h-6 items-center transition-opacity hover:opacity-60'
 
 export function Footer() {
   const { contacts, seller } = site
@@ -98,7 +99,8 @@ export function Footer() {
           className={cn(
             'wordmark whitespace-nowrap font-logo text-[26vw] font-bold uppercase leading-[0.85] text-ink',
             nearWordmark &&
-              'supports-[background-clip:text]:bg-[url(/images/footer-forest.webp)] supports-[background-clip:text]:bg-cover supports-[background-clip:text]:bg-center supports-[background-clip:text]:bg-clip-text supports-[background-clip:text]:text-transparent',
+              // bg-forest — цвет под фото: пока лес грузится, буквы тёмно-зелёные, а не пустое место.
+              'supports-[background-clip:text]:bg-forest supports-[background-clip:text]:bg-[url(/images/footer-forest.webp)] supports-[background-clip:text]:bg-cover supports-[background-clip:text]:bg-center supports-[background-clip:text]:bg-clip-text supports-[background-clip:text]:text-transparent',
           )}
         >
           {site.name}

@@ -21,7 +21,7 @@ export function Select({ options, onChange, label, className, ...rest }: SelectP
       <select
         aria-label={label}
         onChange={(e) => onChange(e.target.value)}
-        className="h-8 w-full appearance-none rounded-md border border-ink/15 bg-white pl-2.5 pr-8 font-mono text-[12px] text-ink transition-colors hover:border-ink/40 focus:border-ink focus:outline-none"
+        className="h-11 w-full appearance-none md:h-8 rounded-md border border-ink/15 bg-white pl-2.5 pr-8 font-mono text-[12px] text-ink transition-colors hover:border-ink/40 focus:border-ink focus:outline-none"
         {...rest}
       >
         {options.map((o) => (

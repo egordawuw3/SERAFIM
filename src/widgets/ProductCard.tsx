@@ -93,11 +93,12 @@ export const ProductCard = memo(function ProductCard({
       </Link>
 
       <Heading className="font-mono text-[14px] font-normal leading-snug md:text-[15px]">
-        <Link to={to} state={linkState} tabIndex={inert ? -1 : undefined} className="transition-opacity hover:opacity-60">
+        <Link to={to} state={linkState} tabIndex={inert ? -1 : undefined} className="tap-target transition-opacity hover:opacity-60">
           {product.name}
         </Link>
       </Heading>
-      <p className="mt-1.5 font-mono text-[16px] font-medium md:text-[18px]">{formatPrice(product.price)}</p>
+      {/* Цена «прозрачна» для касаний: палец рядом с названием попадает в ссылку, а не в текст под ней. */}
+      <p className="pointer-events-none mt-1.5 font-mono text-[16px] font-medium md:text-[18px]">{formatPrice(product.price)}</p>
 
       {showColors && product.colors.length > 1 && (
         <div className="mt-2 flex" role="group" aria-label={`Цвет: ${product.name}`}>
