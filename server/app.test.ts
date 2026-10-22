@@ -124,8 +124,8 @@ describe('POST /api/orders', () => {
     // 2 × 4 500 + 3 900 + 282 доставки.
     expect(((await res.json()) as { total: number }).total).toBe(13182)
     const sent = cdekOrders.at(-1) as { packages: { weight: number; length: number; height: number; items: { amount: number; payment: { value: number } }[] }[] }
-    // Худи — упаковка по умолчанию 800 г, 30×25×8; рюкзак — 800 г, 40×30×13: стопкой 40 × 30 × (8·2 + 13).
-    expect(sent.packages[0]).toMatchObject({ weight: 2400, length: 40, height: 29 })
+    // Худи — упаковка по умолчанию 600 г, 30×25×8; рюкзак — 500 г, 40×30×13: стопкой 40 × 30 × (8·2 + 13).
+    expect(sent.packages[0]).toMatchObject({ weight: 1700, length: 40, height: 29 })
     expect(sent.packages[0].items.map((i) => [i.amount, i.payment.value])).toEqual([
       [2, 4500],
       [1, 3900],
