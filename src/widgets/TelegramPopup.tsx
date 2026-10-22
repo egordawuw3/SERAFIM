@@ -41,20 +41,26 @@ export function TelegramPopup() {
   // После гидратации: в готовом HTML плашки нет, о прошлом закрытии знает только браузер.
   useEffect(() => {
     if (recentlyClosed()) return
-    const show = () => {
-      setClosed(false)
-      setReady(true)
-    }
-    const timer = setTimeout(show, SHOW_AFTER_MS)
-    const onScroll = () => {
-      const half = (document.documentElement.scrollHeight - window.innerHeight) / 2
-      if (half > 0 && window.scrollY >= half) show()
-    }
-    window.addEventListener('scroll', onScroll, { passive: true })
-    return () => {
+    let timer: ReturnType<typeof setTimeout> | undefined
+    const stop = () => {
       clearTimeout(timer)
       window.removeEventListener('scroll', onScroll)
     }
+    // Показываем один раз за визит: после этого таймер и слежение за прокруткой снимаются, иначе прокрутка
+    // после закрытия (в том числе та, что браузер шлёт при разблокировке страницы) открывала окно снова.
+    const show = () => {
+      stop()
+      if (recentlyClosed()) return
+      setClosed(false)
+      setReady(true)
+    }
+    function onScroll() {
+      const half = (document.documentElement.scrollHeight - window.innerHeight) / 2
+      if (half > 0 && window.scrollY >= half) show()
+    }
+    timer = setTimeout(show, SHOW_AFTER_MS)
+    window.addEventListener('scroll', onScroll, { passive: true })
+    return stop
   }, [])
 
   const modalOpen = Boolean((location.state as { background?: Location } | null)?.background)
