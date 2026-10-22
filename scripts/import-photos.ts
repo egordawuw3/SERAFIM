@@ -166,6 +166,25 @@ for (const p of products) {
   }
 }
 
+// Недостающие ширины (например, новая 240 px) — из готового фото 1600 px, без повторной обработки исходников.
+for (const p of products) {
+  for (const c of p.colors) {
+    for (const view of VIEWS) {
+      const master = join(OUT, p.slug, `${c.id}-${view}-${LARGEST}.webp`)
+      if (!existsSync(master)) continue
+      for (const w of PHOTO_WIDTHS) {
+        for (const { ext } of PHOTO_FORMATS) {
+          const file = join(OUT, p.slug, `${c.id}-${view}-${w}.${ext}`)
+          if (existsSync(file)) continue
+          const img = sharp(master).resize(w, null, { withoutEnlargement: true })
+          await (ext === 'avif' ? img.avif({ quality: QUALITY.avif, effort: 6 }) : img.webp({ quality: QUALITY.webp })).toFile(file)
+          console.info(`дополнено: ${p.slug}/${c.id}-${view}-${w}.${ext}`)
+        }
+      }
+    }
+  }
+}
+
 // Картинки для превью ссылок — из готового фото спереди (1600 px), заново только если фото новее.
 for (const key of Object.keys(manifest)) {
   const [slug, colorId] = key.split('/')
