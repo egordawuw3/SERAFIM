@@ -142,7 +142,8 @@ export function CheckoutPage() {
 
   if (items.length === 0) {
     return (
-      <section className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-32 text-center font-mono">
+      // Та же высота, что у заглушки до чтения корзины: футер не прыгает (CLS) ни при пустой, ни при полной корзине.
+      <section className="flex min-h-[100svh] flex-1 flex-col items-center justify-center gap-6 px-4 py-32 text-center font-mono">
         <h1 className="font-sans text-2xl font-light uppercase tracking-widest">Корзина пуста</h1>
         <p className="max-w-md text-[12px] text-ink/70">Откройте карточку товара, выберите размер и нажмите «Оформить заказ» или «В корзину».</p>
         <Link to="/#catalog" className="link-hover text-[12px] uppercase tracking-[0.15em]">
