@@ -93,6 +93,8 @@ export function CheckoutPage() {
   const [honeypot, setHoneypot] = useState('')
   const [errors, setErrors] = useState<FieldErrors>({})
   const [submitting, setSubmitting] = useState(false)
+  // Защита от двойного нажатия: состояние React обновится только после перерисовки, а флаг — сразу.
+  const submittingRef = useRef(false)
 
   const clearError = (key: FieldKey) => setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e))
 
@@ -154,7 +156,7 @@ export function CheckoutPage() {
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (submitting) return
+    if (submittingRef.current) return
 
     const payload: OrderRequest = {
       items: items.map(({ productId, colorId, size, qty }) => ({ productId, colorId, size, qty })),
@@ -187,17 +189,20 @@ export function CheckoutPage() {
       return
     }
 
+    submittingRef.current = true
     setSubmitting(true)
     setErrors({})
     try {
       const order = await submitOrder(payload, honeypot)
-      clearCart()
+      // Сначала уходим на «Заказ оформлен», потом чистим корзину — иначе на миг мелькает «Корзина пуста».
       navigate('/checkout/success', { replace: true, state: { order } })
+      clearCart()
     } catch (err) {
       const fields = err instanceof OrderSubmitError ? err.fields : {}
       const message = err instanceof Error ? err.message : 'Не удалось оформить заказ'
       setErrors({ ...fields, form: message })
     } finally {
+      submittingRef.current = false
       setSubmitting(false)
     }
   }
