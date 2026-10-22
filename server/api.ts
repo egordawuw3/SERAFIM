@@ -21,6 +21,7 @@ import {
   OrderValidationError,
   packageFor,
   resolveItems,
+  sizeLabel,
   unitPackage,
   type Order,
   type OrderCdek,
@@ -304,7 +305,7 @@ export function createApi(platform: ApiPlatform): Hono {
           sender: { name: sender.name, phone: sender.phone },
           recipient: { name: input.name, phone: input.phone },
           items: resolved.map(({ product, item }) => ({
-            name: `${item.name}, ${item.color.toLowerCase()}, ${item.size}`,
+            name: `${item.name}, ${item.color.toLowerCase()}, ${sizeLabel(item.size)}`,
             wareKey: item.sku,
             price: item.price,
             qty: item.qty,

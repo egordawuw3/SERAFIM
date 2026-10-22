@@ -53,6 +53,9 @@ export interface Order {
 
 export class OrderValidationError extends Error {}
 
+/** Размер по-человечески — как на сайте: «единый размер» вместо ONE SIZE (Telegram, название позиции в СДЭК). */
+export const sizeLabel = (size: string) => (size === 'ONE SIZE' ? 'единый размер' : size)
+
 export interface ResolvedItem {
   product: Product
   item: OrderItem

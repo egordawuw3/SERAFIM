@@ -1,5 +1,5 @@
 import { cdekTrackingUrl } from './cdek.ts'
-import type { Order } from './order.ts'
+import { sizeLabel, type Order } from './order.ts'
 
 const escapeHtml = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
@@ -32,7 +32,7 @@ export function formatOrderMessage(order: Order): string {
   const rows = [
     `<b>Новый заказ ${order.number}</b>`,
     '',
-    ...items.map((i) => `• ${escapeHtml(i.name)} — ${escapeHtml(i.color)}, ${escapeHtml(i.size)} × ${i.qty} = ${rub(i.price * i.qty)}`),
+    ...items.map((i) => `• ${escapeHtml(i.name)} — ${escapeHtml(i.color)}, ${escapeHtml(sizeLabel(i.size))} × ${i.qty} = ${rub(i.price * i.qty)}`),
     quote
       ? `<b>Доставка СДЭК:</b> ${rub(quote.sum)}${quote.periodMax ? ` (${quote.periodMin}–${quote.periodMax} дн.)` : ''}`
       : '<b>Доставка СДЭК:</b> не рассчитана — уточните с покупателем',

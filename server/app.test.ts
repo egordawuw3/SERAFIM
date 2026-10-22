@@ -412,6 +412,13 @@ describe('formatOrderMessage', () => {
     expect(text).not.toContain('Telegram:')
   })
 
+  it('writes the one-size backpack as «единый размер», like the site', async () => {
+    const { formatOrderMessage } = await import('./telegram.ts')
+    const text = formatOrderMessage({ ...base, items: [{ ...base.items[0], name: 'Рюкзак Jesus', color: 'Чёрный', size: 'ONE SIZE' }] })
+    expect(text).toContain('Рюкзак Jesus — Чёрный, единый размер × 1')
+    expect(text).not.toContain('ONE SIZE')
+  })
+
   it('flags orders that CDEK did not accept', async () => {
     const { formatOrderMessage } = await import('./telegram.ts')
     const text = formatOrderMessage({ ...base, cdek: { status: 'failed', env: 'test', error: 'Неверный ПВЗ <x>' } })
