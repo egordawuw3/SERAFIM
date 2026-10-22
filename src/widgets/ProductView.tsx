@@ -1,5 +1,6 @@
+import { useEffect, useState } from 'react'
 import { MOCKUP_DISCLAIMER } from '@/entities/product/model/catalog'
-import { useNavigate, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { isColorSoldOut } from '@/entities/product/lib/availability'
 import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
@@ -17,7 +18,6 @@ import { pillClassName } from '@/shared/ui/pillClassName'
 import { ProductGallery } from './ProductGallery'
 
 export function ProductView({ product }: { product: Product }) {
-  const navigate = useNavigate()
   const add = useCart((s) => s.add)
   const [params] = useSearchParams()
   // ?color=… из адреса — только после гидратации: в готовом HTML страница товара собрана с основным цветом.
@@ -26,6 +26,13 @@ export function ProductView({ product }: { product: Product }) {
   const colorSoldOut = isColorSoldOut(product, color)
   // «Купить на Авито»: ссылка на товар, иначе на профиль продавца, иначе кнопки нет.
   const avitoUrl = product.avitoUrl || site.avitoProfileUrl
+  const [added, setAdded] = useState(false)
+
+  useEffect(() => {
+    if (!added) return
+    const t = setTimeout(() => setAdded(false), 1800)
+    return () => clearTimeout(t)
+  }, [added])
 
   return (
     <div className="grid gap-10 px-4 pb-16 pt-4 md:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(300px,400px)] lg:gap-16 lg:pt-10 xl:pr-[8vw]">
@@ -62,10 +69,7 @@ export function ProductView({ product }: { product: Product }) {
           )}
         </div>
 
-        {/*
-         * Главное — «Оформить заказ»: вещь в корзину и сразу к оформлению (СДЭК, оплата при получении).
-         * «В корзину» — собрать несколько вещей в одну посылку. Авито — запасной путь, если есть ссылка.
-         */}
+        {/* Одна кнопка — «В корзину»; заказ оформляется из корзины. Авито — только если есть ссылка. */}
         <div className="mt-5 flex w-full max-w-[340px] flex-col gap-2.5">
           <PillButton
             variant="solid"
@@ -73,17 +77,12 @@ export function ProductView({ product }: { product: Product }) {
             disabled={!size}
             onClick={() => {
               if (!size) return
-              add(toCartItem(product, color, size), false)
-              navigate('/checkout')
+              add(toCartItem(product, color, size))
+              setAdded(true)
             }}
           >
-            {colorSoldOut ? 'Нет в наличии' : !size ? 'Выберите размер' : 'Оформить заказ'}
+            {colorSoldOut ? 'Нет в наличии' : !size ? 'Выберите размер' : added ? 'Добавлено ✓' : 'В корзину'}
           </PillButton>
-          {size && (
-            <PillButton variant="outline" className="h-11 w-full text-[11px]" onClick={() => add(toCartItem(product, color, size))}>
-              В корзину
-            </PillButton>
-          )}
           {avitoUrl && (
             <a href={avitoUrl} target="_blank" rel="noreferrer" className={pillClassName('outline', 'h-11 w-full text-[11px]')}>
               Купить на Авито
