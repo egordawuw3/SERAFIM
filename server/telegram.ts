@@ -1,32 +1,53 @@
-import { CONTACT_METHODS } from '../src/entities/order/model/schema.ts'
+import { cdekTrackingUrl } from './cdek.ts'
 import type { Order } from './order.ts'
 
 const escapeHtml = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
-/** Telegram отклоняет сообщения длиннее 4096 символов — тогда заявка дошла бы только до файла. */
+/** Telegram отклоняет сообщения длиннее 4096 символов — тогда заказ дошёл бы только до базы. */
 const TELEGRAM_LIMIT = 4096
-const TRUNCATED_NOTE = '\n…\n<i>Сообщение обрезано, полная заявка — в базе заявок</i>'
+const TRUNCATED_NOTE = '\n…\n<i>Сообщение обрезано, полный заказ — в базе заказов</i>'
 
 const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`
 
+function cdekLine(order: Order): string {
+  const { cdek } = order
+  const test = cdek.env === 'test' ? ' (тестовая среда)' : ''
+  if (cdek.status === 'created') {
+    if (cdek.number) return `<b>СДЭК${test}:</b> заказ № ${escapeHtml(cdek.number)} — ${cdekTrackingUrl(cdek.number)}`
+    return `<b>СДЭК${test}:</b> заказ принят, номер появится в личном кабинете СДЭК (id ${escapeHtml(cdek.uuid ?? '—')})`
+  }
+  if (cdek.status === 'failed') return `⚠️ <b>В СДЭК не создан, оформите вручную:</b> ${escapeHtml(cdek.error ?? 'неизвестная ошибка')}`
+  return '⚠️ <b>СДЭК не подключён — оформите доставку вручную</b>'
+}
+
 export function formatOrderMessage(order: Order): string {
-  const c = order.customer
+  const { customer: c, item, delivery, totals } = order
   const phoneHref = `tel:${c.phone.replace(/[^\d+]/g, '')}`
+  const point = delivery.note
+    ? `указан покупателем: ${escapeHtml(delivery.note)}`
+    : delivery.point
+      ? `${escapeHtml(delivery.pointCode)}, ${escapeHtml(delivery.point.city)}, ${escapeHtml(delivery.point.address)}`
+      : `${escapeHtml(delivery.pointCode)} (город СДЭК ${delivery.cityCode})`
+  const quote = delivery.quote
   const rows = [
-    `<b>Новая заявка ${order.number}</b>`,
+    `<b>Новый заказ ${order.number}</b>`,
     '',
+    `<b>Товар:</b> ${escapeHtml(item.name)} — ${escapeHtml(item.color)}, ${escapeHtml(item.size)} × ${item.qty} = ${rub(item.price * item.qty)}`,
+    quote
+      ? `<b>Доставка СДЭК:</b> ${rub(quote.sum)}${quote.periodMax ? ` (${quote.periodMin}–${quote.periodMax} дн.)` : ''}`
+      : '<b>Доставка СДЭК:</b> не рассчитана — уточните с покупателем',
+    `<b>Итого: ${rub(totals.total)}</b>`,
+    totals.prepayment
+      ? `Предоплата: ${rub(totals.prepayment)}, при получении: ${rub(totals.payOnPickup)}`
+      : `Оплата при получении в ПВЗ: ${rub(totals.payOnPickup)}`,
+    '',
+    `<b>ПВЗ:</b> ${point}`,
     `<b>Имя:</b> ${escapeHtml(c.name)}`,
     `<b>Телефон:</b> <a href="${phoneHref}">${escapeHtml(c.phone)}</a>`,
     c.telegram ? `<b>Telegram:</b> @${escapeHtml(c.telegram)}` : null,
-    `<b>Связаться через:</b> ${CONTACT_METHODS[c.contactMethod]}`,
-    c.city ? `<b>Город:</b> ${escapeHtml(c.city)}` : null,
     c.comment ? `<b>Комментарий:</b> ${escapeHtml(c.comment)}` : null,
     '',
-    ...order.lines.map(
-      (l) => `• ${escapeHtml(l.name)} — ${escapeHtml(l.color)}, ${escapeHtml(l.size)} × ${l.qty} = ${rub(l.price * l.qty)}`,
-    ),
-    '',
-    `<b>Итого: ${rub(order.total)}</b> (без доставки)`,
+    cdekLine(order),
   ]
   const text = rows.filter((r) => r !== null).join('\n')
   if (text.length <= TELEGRAM_LIMIT) return text

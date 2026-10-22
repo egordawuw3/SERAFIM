@@ -2,28 +2,79 @@ import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
+import { orderTotals } from '../src/entities/order/model/pricing.ts'
+import { normalizeRuPhone, orderRequestSchema } from '../src/entities/order/model/schema.ts'
+import type { Order } from './order.ts'
 
 const ordersFile = join(mkdtempSync(join(tmpdir(), 'serafim-')), 'orders.jsonl')
 let app: typeof import('./app.ts').app
+
+/*
+ * СДЭК и Telegram подменены: тесты не ходят в сеть. cdekMode переключает поведение «создания заказа» в СДЭК.
+ */
+let cdekMode: 'ok' | 'down' = 'ok'
+const cdekOrders: unknown[] = []
+const point = (code: string, cityCode: number, city: string, address: string) => ({
+  code,
+  name: `${code}, ${city}`,
+  work_time: 'Пн-Вс 10:00-20:00',
+  allowed_cod: true,
+  is_handout: true,
+  location: { city_code: cityCode, city, address, latitude: 55.7, longitude: 49.1 },
+})
+const POINTS: Record<string, ReturnType<typeof point>> = {
+  MSK65: point('MSK65', 44, 'Москва', 'ул. Динамовская, 1А'),
+  KZN3: point('KZN3', 424, 'Казань', 'ул. Спартаковская, 2'),
+}
+
+async function fakeFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
+  const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
+  const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
+  if (url.hostname === 'api.telegram.org') return json({ ok: true })
+  if (url.hostname !== 'api.edu.cdek.ru') throw new Error(`unexpected fetch ${url}`)
+  const path = url.pathname.replace('/v2', '')
+  if (path === '/oauth/token') return json({ access_token: 'test-token', expires_in: 3600 })
+  if (path === '/location/suggest/cities') return json([{ code: 424, full_name: 'Казань, Татарстан, Россия' }])
+  if (path === '/deliverypoints') {
+    const code = url.searchParams.get('code')
+    if (code) return json(POINTS[code] ? [POINTS[code]] : [])
+    return json(Object.values(POINTS).filter((p) => String(p.location.city_code) === url.searchParams.get('city_code')))
+  }
+  if (path === '/calculator/tariff') return json({ total_sum: 281.4, delivery_sum: 235, period_min: 8, period_max: 12 })
+  if (path === '/orders' && init?.method === 'POST') {
+    if (cdekMode === 'down') return json({ requests: [{ state: 'INVALID', errors: [{ message: 'Сервис недоступен' }] }] }, 500)
+    cdekOrders.push(JSON.parse(String(init.body)))
+    return json({ entity: { uuid: 'uuid-1' }, requests: [{ type: 'CREATE', state: 'ACCEPTED' }] })
+  }
+  if (path.startsWith('/orders/')) return json({ entity: { cdek_number: '1234567890' }, requests: [{ type: 'CREATE', state: 'SUCCESSFUL' }] })
+  throw new Error(`unexpected CDEK call ${path}`)
+}
 
 beforeAll(async () => {
   vi.stubEnv('ORDERS_FILE', ordersFile)
   vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
   vi.stubEnv('TRUST_PROXY', '1')
+  vi.stubEnv('CDEK_ENV', 'test')
+  vi.stubGlobal('fetch', vi.fn(fakeFetch))
   vi.spyOn(console, 'info').mockImplementation(() => {})
+  vi.spyOn(console, 'error').mockImplementation(() => {})
   ;({ app } = await import('./app.ts'))
 })
 
 const validOrder = {
-  name: 'Иван',
-  phone: '+7 999 123-45-67',
+  productId: 'p2',
+  colorId: 'grey',
+  size: 'M',
+  qty: 1,
+  cityCode: 424,
+  pointCode: 'KZN3',
+  deliveryNote: '',
+  name: 'Иван Петров',
+  phone: '8 (999) 123-45-67',
   telegram: '@ivan_petrov',
-  contactMethod: 'telegram',
-  city: 'Москва',
   comment: '',
   offerAccepted: true,
   consent: true,
-  items: [{ productId: 'p2', colorId: 'grey', size: 'M', qty: 2 }],
 }
 
 const post = (body: unknown, ip = '1.1.1.1') =>
@@ -33,59 +84,78 @@ const post = (body: unknown, ip = '1.1.1.1') =>
     body: JSON.stringify(body),
   })
 
-describe('POST /api/orders', () => {
-  it('accepts a valid order, prices it on the server and stores it', async () => {
-    const res = await post({ ...validOrder, items: [{ ...validOrder.items[0] }] })
-    expect(res.status).toBe(201)
-    const data = (await res.json()) as { number: string; total: number }
-    expect(data.number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
-    expect(data.total).toBe(4500 * 2)
+const lastSaved = (): Order => JSON.parse(readFileSync(ordersFile, 'utf8').trim().split('\n').at(-1)!)
 
-    const saved = JSON.parse(readFileSync(ordersFile, 'utf8').trim().split('\n').at(-1)!)
+describe('POST /api/orders', () => {
+  it('prices on the server, adds CDEK delivery and creates a cash-on-delivery order', async () => {
+    const res = await post(validOrder)
+    expect(res.status).toBe(201)
+    const data = (await res.json()) as { number: string; total: number; payOnPickup: number; cdekCreated: boolean }
+    expect(data.number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
+    // 4 500 ₽ за худи + 282 ₽ доставки (СДЭК вернул 281.4 — округляем вверх).
+    expect(data).toMatchObject({ total: 4782, payOnPickup: 4782, cdekCreated: true })
+
+    const saved = lastSaved()
+    expect(saved.customer.phone).toBe('+79991234567')
     expect(saved.customer.telegram).toBe('ivan_petrov')
-    expect(saved.lines[0]).toMatchObject({ name: 'Худи The only way', size: 'M', qty: 2 })
+    expect(saved.item).toMatchObject({ name: 'Худи The only way', size: 'M', price: 4500 })
+    expect(saved.delivery.point?.address).toBe('ул. Спартаковская, 2')
+    expect(saved.cdek).toMatchObject({ status: 'created', env: 'test', uuid: 'uuid-1' })
+    expect(saved.consentAt).toBe(saved.createdAt)
+
+    const sent = cdekOrders.at(-1) as { shipment_point: string; delivery_point: string; delivery_recipient_cost: { value: number }; packages: { items: { payment: { value: number } }[] }[] }
+    expect(sent.shipment_point).toBe('MSK65')
+    expect(sent.delivery_point).toBe('KZN3')
+    expect(sent.delivery_recipient_cost.value).toBe(282)
+    expect(sent.packages[0].items[0].payment.value).toBe(4500)
   })
 
-  it('returns field errors for invalid input', async () => {
-    const res = await post({ ...validOrder, name: '', phone: '123', telegram: '' })
+  it('never loses an order when CDEK fails — it is saved and marked for manual processing', async () => {
+    cdekMode = 'down'
+    const res = await post(validOrder, '1.1.1.2')
+    cdekMode = 'ok'
+    expect(res.status).toBe(201)
+    expect(((await res.json()) as { cdekCreated: boolean }).cdekCreated).toBe(false)
+    expect(lastSaved().cdek).toMatchObject({ status: 'failed', error: 'Сервис недоступен' })
+  })
+
+  it('accepts a manually described pickup point when CDEK lookups were unavailable', async () => {
+    const created = cdekOrders.length
+    const res = await post({ ...validOrder, cityCode: 0, pointCode: 'MANUAL_POINT', deliveryNote: 'Тверь, ПВЗ на Советской' }, '1.1.1.8')
+    expect(res.status).toBe(201)
+    expect(((await res.json()) as { cdekCreated: boolean }).cdekCreated).toBe(false)
+    expect(lastSaved().delivery.note).toBe('Тверь, ПВЗ на Советской')
+    expect(cdekOrders.length).toBe(created)
+    const empty = await post({ ...validOrder, cityCode: 0, pointCode: 'MANUAL_POINT', deliveryNote: '' }, '1.1.1.9')
+    expect(((await empty.json()) as { fields: Record<string, string> }).fields).toHaveProperty('deliveryNote')
+  })
+
+  it('rejects an unknown pickup point and invalid fields', async () => {
+    const badPoint = await post({ ...validOrder, pointCode: 'NOPE1' }, '1.1.1.3')
+    expect(badPoint.status).toBe(400)
+    expect(((await badPoint.json()) as { fields: Record<string, string> }).fields).toHaveProperty('pointCode')
+
+    const res = await post({ ...validOrder, name: '', phone: '123', consent: false, offerAccepted: false }, '1.1.1.4')
     expect(res.status).toBe(400)
-    const data = (await res.json()) as { fields: Record<string, string> }
-    expect(Object.keys(data.fields)).toEqual(expect.arrayContaining(['name', 'phone', 'telegram']))
+    const { fields } = (await res.json()) as { fields: Record<string, string> }
+    expect(Object.keys(fields)).toEqual(expect.arrayContaining(['name', 'phone', 'consent', 'offerAccepted']))
   })
 
   it('rejects sold-out sizes and unknown products', async () => {
-    const soldOut = await post({ ...validOrder, items: [{ productId: 'p1', colorId: 'blue', size: 'L', qty: 1 }] })
+    const soldOut = await post({ ...validOrder, productId: 'p1', colorId: 'blue', size: 'L' }, '1.1.1.5')
     expect(soldOut.status).toBe(409)
-    const unknown = await post({ ...validOrder, items: [{ productId: 'zzz', colorId: 'blue', size: 'M', qty: 1 }] })
+    const unknown = await post({ ...validOrder, productId: 'zzz' }, '1.1.1.6')
     expect(unknown.status).toBe(409)
   })
 
   it('silently drops honeypot submissions with a realistic answer', async () => {
     const before = readFileSync(ordersFile, 'utf8')
-    const res = await post({ ...validOrder, website: 'http://spam' })
+    const created = cdekOrders.length
+    const res = await post({ ...validOrder, website: 'http://spam' }, '1.1.1.7')
     expect(res.status).toBe(201)
-    const data = (await res.json()) as { number: string; total: number }
-    expect(data.number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
-    expect(data.number).not.toBe('SRF-000000-0000')
-    expect(data.total).toBe(4500 * 2)
+    expect(((await res.json()) as { number: string }).number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
     expect(readFileSync(ordersFile, 'utf8')).toBe(before)
-  })
-
-  it('stores consent time and requires consent', async () => {
-    const saved = JSON.parse(readFileSync(ordersFile, 'utf8').trim().split('\n')[0])
-    expect(saved.consentAt).toBe(saved.createdAt)
-    expect(saved.offerAcceptedAt).toBe(saved.createdAt)
-    expect(saved.documentsVersion).toBeTruthy()
-    expect(saved.customer).not.toHaveProperty('consent')
-    expect(saved.customer).not.toHaveProperty('offerAccepted')
-
-    // Согласие на обработку ПД и принятие оферты — независимые: без любого из них заказ не принимается.
-    const noConsent = await post({ ...validOrder, consent: false }, '2.2.2.1')
-    expect(noConsent.status).toBe(400)
-    expect(((await noConsent.json()) as { fields: Record<string, string> }).fields).toHaveProperty('consent')
-    const noOffer = await post({ ...validOrder, offerAccepted: false }, '2.2.2.3')
-    expect(noOffer.status).toBe(400)
-    expect(((await noOffer.json()) as { fields: Record<string, string> }).fields).toHaveProperty('offerAccepted')
+    expect(cdekOrders.length).toBe(created)
   })
 
   it('does not leak validator internals for malformed input', async () => {
@@ -98,6 +168,29 @@ describe('POST /api/orders', () => {
     const data = (await res.json()) as { fields: Record<string, string> }
     expect(Object.keys(data.fields)).toEqual(['form'])
     expect(data.fields.form).not.toMatch(/Invalid input|expected/)
+  })
+})
+
+const get = (path: string) => app.request(path, { headers: { 'x-forwarded-for': '4.4.4.4' } })
+
+describe('CDEK lookups', () => {
+  it('suggests cities, lists cash-on-delivery points and quotes delivery', async () => {
+    const citiesRes = await get(`/api/cdek/cities?q=${encodeURIComponent('Казан')}`)
+    const cities = (await citiesRes.json()) as { cities: { code: number }[] }
+    expect(citiesRes.status, JSON.stringify(cities)).toBe(200)
+    expect(cities.cities[0].code).toBe(424)
+
+    const points = (await (await get('/api/cdek/points?city=424')).json()) as { points: { code: string; address: string }[] }
+    expect(points.points).toEqual([expect.objectContaining({ code: 'KZN3', address: 'ул. Спартаковская, 2' })])
+
+    const quote = (await (await get('/api/cdek/quote?product=p2&qty=1&city=424')).json()) as {
+      quote: { sum: number; periodMin: number }
+      totals: { total: number }
+    }
+    expect(quote.quote).toMatchObject({ sum: 282, periodMin: 8 })
+    expect(quote.totals.total).toBe(4782)
+
+    expect((await get('/api/cdek/quote?product=zzz&city=424')).status).toBe(400)
   })
 })
 
@@ -155,25 +248,6 @@ describe('createRateLimiter', () => {
   })
 })
 
-describe('formatOrderMessage', () => {
-  it('escapes user input for Telegram HTML', async () => {
-    const { formatOrderMessage } = await import('./telegram.ts')
-    const text = formatOrderMessage({
-      number: 'SRF-1',
-      createdAt: '',
-      offerAcceptedAt: '',
-      consentAt: '',
-      documentsVersion: '',
-      customer: { ...validOrder, telegram: '', comment: '<b>hi</b> & bye', contactMethod: 'phone' },
-      lines: [{ name: 'Худи', color: 'Синий', size: 'M', qty: 1, price: 1000 }],
-      total: 1000,
-    })
-    expect(text).toContain('&lt;b&gt;hi&lt;/b&gt; &amp; bye')
-    expect(text).not.toContain('Telegram:')
-    expect(text).toContain('Связаться через:</b> Звонок')
-  })
-})
-
 describe('rate limit', () => {
   it('limits repeated submissions from one IP', async () => {
     const statuses = []
@@ -190,30 +264,6 @@ describe('rate limit', () => {
   })
 })
 
-describe('formatOrderMessage length', () => {
-  it('fits Telegram limit without breaking HTML', async () => {
-    const { formatOrderMessage } = await import('./telegram.ts')
-    const text = formatOrderMessage({
-      number: 'SRF-1',
-      createdAt: '',
-      offerAcceptedAt: '',
-      consentAt: '',
-      documentsVersion: '',
-      customer: { ...validOrder, contactMethod: 'telegram', comment: 'x'.repeat(1000) },
-      lines: Array.from({ length: 30 }, (_, i) => ({
-        name: `Очень длинное название товара номер ${i} `.repeat(3),
-        color: 'Глубокий синий',
-        size: 'XL',
-        qty: 10,
-        price: 11990,
-      })),
-      total: 1,
-    })
-    expect(text.length).toBeLessThanOrEqual(4096)
-    expect(text.endsWith('</i>')).toBe(true)
-  })
-})
-
 describe('rateLimitKey', () => {
   it('groups IPv6 addresses by /64 and keeps IPv4 as is', async () => {
     const { rateLimitKey } = await import('./limits.ts')
@@ -223,5 +273,102 @@ describe('rateLimitKey', () => {
     expect(rateLimitKey('2001:0DB8:0000:0001:ffff:ffff:ffff:ffff')).toBe('2001:db8:0:1::/64')
     expect(rateLimitKey('2001:db8::1')).toBe('2001:db8:0:0::/64')
     expect(rateLimitKey('::1')).toBe('0:0:0:0::/64')
+  })
+})
+
+describe('order totals', () => {
+  it('adds delivery and splits prepayment from cash on pickup', () => {
+    expect(orderTotals(4500, 1, 282)).toEqual({ goods: 4500, delivery: 282, total: 4782, prepayment: 0, payOnPickup: 4782 })
+    expect(orderTotals(3900, 2, 300, 1000)).toEqual({ goods: 7800, delivery: 300, total: 8100, prepayment: 1000, payOnPickup: 7100 })
+    // Предоплата не может превысить сумму заказа и не бывает отрицательной.
+    expect(orderTotals(100, 1, 0, 500).payOnPickup).toBe(0)
+    expect(orderTotals(100, 1, 0, -5).prepayment).toBe(0)
+  })
+})
+
+describe('order validation', () => {
+  it('normalizes Russian phone numbers', () => {
+    expect(normalizeRuPhone('8 (999) 123-45-67')).toBe('+79991234567')
+    expect(normalizeRuPhone('+7 999 123 45 67')).toBe('+79991234567')
+    expect(normalizeRuPhone('9991234567')).toBe('+79991234567')
+    expect(normalizeRuPhone('+380 99 123 45 67')).toBeNull()
+    expect(normalizeRuPhone('123')).toBeNull()
+  })
+
+  it('requires a pickup point, a city and both consents', () => {
+    const r = orderRequestSchema.safeParse({ ...validOrder, pointCode: '', consent: false })
+    expect(r.success).toBe(false)
+    const paths = r.success ? [] : r.error.issues.map((i) => i.path[0])
+    expect(paths).toEqual(expect.arrayContaining(['pointCode', 'consent']))
+    // Город проверяется, когда остальные поля уже в порядке (проверки между полями в zod идут после основных).
+    const noCity = orderRequestSchema.safeParse({ ...validOrder, cityCode: 0 })
+    expect(noCity.success ? [] : noCity.error.issues.map((i) => i.path[0])).toEqual(['cityCode'])
+    expect(orderRequestSchema.safeParse(validOrder).success).toBe(true)
+  })
+})
+
+describe('buildCdekOrder', () => {
+  it('collects goods and delivery on pickup minus prepayment', async () => {
+    const { buildCdekOrder } = await import('./cdek.ts')
+    const body = buildCdekOrder({
+      number: 'SRF-1',
+      shipmentPoint: 'MSK65',
+      deliveryPoint: 'KZN3',
+      sender: { name: 'S', phone: '+70000000000' },
+      recipient: { name: 'R', phone: '+79991234567' },
+      item: { name: 'Худи', wareKey: 'SKU', price: 4500, qty: 2 },
+      pkg: { weightG: 800, dimsCm: [30, 25, 8] },
+      deliveryCost: 300,
+      prepaid: 1000,
+    })
+    expect(body).toMatchObject({ type: 1, tariff_code: 136, delivery_recipient_cost: { value: 300 } })
+    expect(body.packages[0]).toMatchObject({ weight: 1600, height: 16 })
+    expect(body.packages[0].items[0]).toMatchObject({ payment: { value: 4000 }, cost: 4500, amount: 2 })
+  })
+})
+
+describe('formatOrderMessage', () => {
+  const base: Order = {
+    number: 'SRF-1',
+    createdAt: '',
+    offerAcceptedAt: '',
+    consentAt: '',
+    documentsVersion: '',
+    customer: { name: 'Иван', phone: '+79991234567', telegram: '', comment: '<b>hi</b> & bye' },
+    item: { productId: 'p2', name: 'Худи The only way', color: 'Серый меланж', size: 'M', qty: 1, price: 4500, sku: 'X' },
+    delivery: {
+      cityCode: 424,
+      pointCode: 'KZN3',
+      point: { city: 'Казань', address: 'ул. Спартаковская, 2', name: 'KZN3', workTime: '' },
+      quote: { sum: 282, periodMin: 8, periodMax: 12 },
+    },
+    totals: orderTotals(4500, 1, 282),
+    cdek: { status: 'created', env: 'prod', uuid: 'u', number: '1234567890' },
+  }
+
+  it('lists item, delivery, total, pickup point, buyer and CDEK number', async () => {
+    const { formatOrderMessage } = await import('./telegram.ts')
+    const text = formatOrderMessage(base)
+    expect(text).toMatch(/Худи The only way — Серый меланж, M × 1 = 4\s500 ₽/)
+    expect(text).toContain('Доставка СДЭК:</b> 282 ₽ (8–12 дн.)')
+    expect(text).toMatch(/Итого: 4\s782 ₽/)
+    expect(text).toContain('KZN3, Казань, ул. Спартаковская, 2')
+    expect(text).toContain('+79991234567')
+    expect(text).toContain('заказ № 1234567890')
+    expect(text).toContain('&lt;b&gt;hi&lt;/b&gt; &amp; bye')
+    expect(text).not.toContain('Telegram:')
+  })
+
+  it('flags orders that CDEK did not accept', async () => {
+    const { formatOrderMessage } = await import('./telegram.ts')
+    const text = formatOrderMessage({ ...base, cdek: { status: 'failed', env: 'test', error: 'Неверный ПВЗ <x>' } })
+    expect(text).toContain('В СДЭК не создан, оформите вручную:</b> Неверный ПВЗ &lt;x&gt;')
+  })
+
+  it('fits the Telegram limit without breaking HTML', async () => {
+    const { formatOrderMessage } = await import('./telegram.ts')
+    const text = formatOrderMessage({ ...base, customer: { ...base.customer, comment: 'x'.repeat(5000) } })
+    expect(text.length).toBeLessThanOrEqual(4096)
+    expect(text.endsWith('</i>')).toBe(true)
   })
 })

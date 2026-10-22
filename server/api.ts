@@ -2,37 +2,91 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
+import { orderTotals } from '../src/entities/order/model/pricing.ts'
 import {
   ORDER_FORM_FIELDS,
   orderRequestSchema,
   type ApiError,
   type OrderResponse,
+  MANUAL_POINT,
 } from '../src/entities/order/model/schema.ts'
+import { MAX_ITEM_QTY } from '../src/entities/order/model/limits.ts'
+import { products } from '../src/entities/product/model/catalog.ts'
+import { site } from '../src/shared/config/site.ts'
+import { CdekError, type CdekClient, type CdekPoint, type CdekQuote } from './cdek.ts'
 import { rateLimitKey } from './limits.ts'
-import { createOrder, OrderValidationError, type Order } from './order.ts'
+import { createOrder, OrderValidationError, packageFor, resolveItem, type Order, type OrderCdek, type OrderDelivery } from './order.ts'
+import { createRateLimiter } from './rateLimit.ts'
 import { SECURITY_HEADERS } from './securityHeaders.ts'
 import { formatOrderMessage, sendToTelegram, type TelegramConfig } from './telegram.ts'
 
 /*
- * API магазина без привязки к площадке. Что зависит от неё — хранение заявок, лимит, IP посетителя —
+ * API магазина без привязки к площадке. Что зависит от неё — хранение заказов, лимит, IP посетителя, фоновые задачи —
  * передаётся снаружи: Node-сервер (app.ts, Docker) пишет в файл, Cloudflare (worker.ts) — в базу D1.
  */
 export interface ApiPlatform {
   /** Адрес сайта, например https://serafim.ru. Если задан — изменяющие запросы с другим Origin отклоняются. */
   siteOrigin: string
   telegram: TelegramConfig
+  /** null — СДЭК не подключён: заказы принимаются и уходят в Telegram с пометкой «оформите вручную». */
+  cdek: CdekClient | null
+  /** Отправитель для СДЭК: ПВЗ, куда продавец сдаёт посылки, имя и телефон. */
+  sender: { name: string; phone: string; pointCode: string }
   clientIp(c: Context): string
-  /** true — заявка с этого IP укладывается в лимит. */
+  /** true — заказ с этого IP укладывается в лимит. */
   allowOrder(ip: string): boolean | Promise<boolean>
+  /** Сохраняет заказ; повторный вызов с тем же номером обновляет запись (номер СДЭК приходит позже). */
   saveOrder(order: Order): Promise<void>
+  /** Задача после ответа покупателю: ждать номер СДЭК и написать продавцу (в Workers — waitUntil). */
+  background(c: Context, task: Promise<unknown>): void
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
 const formFields = new Set<string>(ORDER_FORM_FIELDS)
 
+/** Сколько ждать, пока СДЭК присвоит заказу номер: 8 проверок раз в 2 с. */
+const CDEK_POLL = { attempts: 8, intervalMs: 2_000 }
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
+
+/** Небольшой кеш ответов СДЭК: города и ПВЗ меняются редко, а лимиты API не бесконечны. */
+function ttlCache<T>(ttlMs: number, maxEntries = 500) {
+  const map = new Map<string, { value: Promise<T>; expiresAt: number }>()
+  return (key: string, load: () => Promise<T>): Promise<T> => {
+    const hit = map.get(key)
+    if (hit && hit.expiresAt > Date.now()) return hit.value
+    if (map.size >= maxEntries) map.delete(map.keys().next().value as string)
+    const value = load()
+    map.set(key, { value, expiresAt: Date.now() + ttlMs })
+    // Ошибку не кешируем — следующий запрос попробует снова.
+    value.catch(() => map.delete(key))
+    return value
+  }
+}
+
 export function createApi(platform: ApiPlatform): Hono {
   const app = new Hono()
   const telegramConfigured = Boolean(platform.telegram.token && platform.telegram.chatId)
+  const { cdek, sender } = platform
+
+  const citiesCache = ttlCache<{ code: number; name: string }[]>(60 * 60_000)
+  const pointsCache = ttlCache<CdekPoint[]>(60 * 60_000)
+  const pointCache = ttlCache<CdekPoint | null>(60 * 60_000)
+  const quoteCache = ttlCache<CdekQuote>(15 * 60_000)
+  // Подсказки и расчёт — без записи, но каждый запрос стоит обращения к СДЭК: ограничиваем частоту с одного IP.
+  const allowLookup = createRateLimiter({ max: 120, windowMs: 10 * 60_000, maxKeys: 10_000 })
+
+  const senderCity = async (): Promise<number> => {
+    const point = await pointCache(sender.pointCode, () => cdek!.point(sender.pointCode))
+    if (!point) throw new CdekError(`ПВЗ отправителя ${sender.pointCode} не найден в СДЭК`)
+    return point.cityCode
+  }
+
+  const quoteFor = async (productId: string, qty: number, toCity: number): Promise<CdekQuote> => {
+    const product = products.find((p) => p.id === productId)
+    if (!product) throw new OrderValidationError('Товар не найден')
+    const from = await senderCity()
+    return quoteCache(`${productId}:${qty}:${toCity}`, () => cdek!.quote(from, toCity, packageFor(product), qty))
+  }
 
   app.use('*', async (c, next) => {
     await next()
@@ -65,19 +119,104 @@ export function createApi(platform: ApiPlatform): Hono {
   // Отдельной страницы каталога больше нет — он на главной. Постоянный редирект: поисковики переносят адрес, фильтры сохраняются.
   app.get('/catalog', (c) => c.redirect(`/${new URL(c.req.url).search}#catalog`, 301))
 
+  // ---------- Доставка СДЭК: подсказки и расчёт для формы заказа ----------
+
+  const deliveryUnavailable = (c: Context) =>
+    c.json<ApiError>({ error: 'Расчёт доставки СДЭК сейчас недоступен. Оформите заказ — мы посчитаем доставку сами.' }, 503)
+
+  app.use('/api/cdek/*', async (c, next) => {
+    if (!allowLookup(rateLimitKey(platform.clientIp(c)))) return c.json<ApiError>({ error: 'Слишком много запросов' }, 429)
+    if (!cdek) return deliveryUnavailable(c)
+    await next()
+  })
+
+  app.get('/api/cdek/cities', async (c) => {
+    const q = (c.req.query('q') ?? '').trim()
+    if (q.length < 2 || q.length > 60) return c.json({ cities: [] })
+    try {
+      return c.json({ cities: await citiesCache(q.toLowerCase(), () => cdek!.suggestCities(q)) })
+    } catch (err) {
+      console.error('[cdek] cities', err)
+      return deliveryUnavailable(c)
+    }
+  })
+
+  app.get('/api/cdek/points', async (c) => {
+    const city = Number(c.req.query('city'))
+    if (!Number.isInteger(city) || city <= 0) return c.json<ApiError>({ error: 'Не указан город' }, 400)
+    try {
+      return c.json({ points: await pointsCache(String(city), () => cdek!.points(city)) })
+    } catch (err) {
+      console.error('[cdek] points', err)
+      return deliveryUnavailable(c)
+    }
+  })
+
+  app.get('/api/cdek/quote', async (c) => {
+    const city = Number(c.req.query('city'))
+    const qty = Number(c.req.query('qty') ?? 1)
+    const product = products.find((p) => p.id === c.req.query('product'))
+    if (!product || !Number.isInteger(city) || city <= 0 || !Number.isInteger(qty) || qty < 1 || qty > MAX_ITEM_QTY) {
+      return c.json<ApiError>({ error: 'Некорректный запрос' }, 400)
+    }
+    try {
+      const quote = await quoteFor(product.id, qty, city)
+      return c.json({ quote, totals: orderTotals(product.price, qty, quote.sum, site.shipping.prepaymentAmount) })
+    } catch (err) {
+      console.error('[cdek] quote', err)
+      return deliveryUnavailable(c)
+    }
+  })
+
+  // ---------- Заказ ----------
+
   const limitBody = bodyLimit({
     maxSize: 32 * 1024,
     onError: (c) => c.json<ApiError>({ error: 'Слишком большой запрос' }, 413),
   })
 
+  /** Ждёт номер СДЭК (или отказ), сохраняет итог и пишет продавцу. Ошибки — только в лог: заказ уже сохранён. */
+  async function finishOrder(order: Order): Promise<void> {
+    const uuid = order.cdek.uuid
+    if (cdek && order.cdek.status === 'created' && uuid) {
+      for (let i = 0; i < CDEK_POLL.attempts; i++) {
+        await sleep(CDEK_POLL.intervalMs)
+        try {
+          const state = await cdek.orderState(uuid)
+          if (state.state === 'ready') {
+            order.cdek.number = state.cdekNumber
+            break
+          }
+          if (state.state === 'invalid') {
+            order.cdek = { ...order.cdek, status: 'failed', error: state.error }
+            break
+          }
+        } catch (err) {
+          console.error(`[orders] ${order.number}: не удалось узнать статус в СДЭК`, err)
+        }
+      }
+      await platform.saveOrder(order).catch((err) => console.error(`[orders] ${order.number}: не удалось обновить`, err))
+    }
+    if (!telegramConfigured) {
+      // Только номер: логи площадки (панель Cloudflare, журнал Docker) — не место для имён и телефонов.
+      console.info(`[orders] ${order.number} сохранён (Telegram не настроен — уведомление не отправлено)`)
+      return
+    }
+    try {
+      await sendToTelegram(formatOrderMessage(order), platform.telegram)
+    } catch (err) {
+      console.error(`[orders] ${order.number}: не удалось отправить в Telegram`, err)
+    }
+  }
+
   app.post('/api/orders', limitBody, async (c) => {
     const body: unknown = await c.req.json().catch(() => null)
     // Honeypot: скрытое поле, которое заполняют только боты. Бот проходит те же проверки и получает
-    // правдоподобный ответ — но заявка не сохраняется и не уходит в Telegram.
+    // правдоподобный ответ — но заказ не сохраняется, не создаётся в СДЭК и не уходит в Telegram.
     const isBot = Boolean(body && typeof body === 'object' && 'website' in body && body.website)
 
     if (!(await platform.allowOrder(rateLimitKey(platform.clientIp(c))))) {
-      return c.json<ApiError>({ error: 'Слишком много заявок. Попробуйте позже или напишите нам в Telegram.' }, 429)
+      return c.json<ApiError>({ error: 'Слишком много заказов. Попробуйте позже или напишите нам в Telegram.' }, 429)
     }
 
     const parsed = orderRequestSchema.safeParse(body)
@@ -87,36 +226,77 @@ export function createApi(platform: ApiPlatform): Hono {
       for (const issue of parsed.error.issues) {
         const key = String(issue.path[0] ?? '')
         if (formFields.has(key)) fields[key] ??= issue.message
-        else fields.form ??= 'Не удалось обработать заявку. Обновите страницу и попробуйте ещё раз.'
+        else fields.form ??= 'Не удалось обработать заказ. Обновите страницу и попробуйте ещё раз.'
       }
       return c.json<ApiError>({ error: 'Проверьте поля формы', fields }, 400)
     }
+    const input = parsed.data
 
-    let order
+    let resolved
     try {
-      order = createOrder(parsed.data)
+      resolved = resolveItem(input)
     } catch (err) {
       if (err instanceof OrderValidationError) return c.json<ApiError>({ error: err.message }, 409)
       throw err
     }
+    const { product, item } = resolved
 
-    if (isBot) return c.json<OrderResponse>({ number: order.number, total: order.total }, 201)
+    const respond = (order: Order) =>
+      c.json<OrderResponse>(
+        { number: order.number, total: order.totals.total, payOnPickup: order.totals.payOnPickup, cdekCreated: order.cdek.status === 'created' },
+        201,
+      )
 
-    await platform.saveOrder(order)
+    const manual = input.pointCode === MANUAL_POINT
+    const delivery: OrderDelivery = { cityCode: input.cityCode, pointCode: input.pointCode, ...(manual ? { note: input.deliveryNote } : {}) }
+    let cdekState: OrderCdek = manual
+      ? { status: 'failed', env: cdek?.env, error: 'пункт выдачи не выбран на сайте — покупатель указал его сам' }
+      : { status: 'off' }
 
-    if (telegramConfigured) {
+    if (isBot) return respond(createOrder(input, item, delivery, cdekState))
+
+    // Пункт выдачи и доставку сервер проверяет и считает сам: суммы из браузера не принимаются на веру.
+    // Если СДЭК недоступен — заказ всё равно принимается и уходит продавцу с пометкой «оформите вручную».
+    if (cdek && !manual) {
+      cdekState = { status: 'failed', env: cdek.env }
       try {
-        await sendToTelegram(formatOrderMessage(order), platform.telegram)
+        const point = await pointCache(input.pointCode, () => cdek.point(input.pointCode))
+        if (!point || point.cityCode !== input.cityCode) {
+          return c.json<ApiError>({ error: 'Проверьте поля формы', fields: { pointCode: 'Пункт выдачи не найден — выберите другой' } }, 400)
+        }
+        delivery.point = { city: point.city, address: point.address, name: point.name, workTime: point.workTime }
+        delivery.quote = await quoteFor(product.id, item.qty, input.cityCode)
       } catch (err) {
-        // Заявка уже сохранена — покупателю не показываем ошибку, но громко логируем.
-        console.error(`[orders] ${order.number}: не удалось отправить в Telegram`, err)
+        console.error('[orders] СДЭК: проверка пункта или расчёт доставки', err)
+        cdekState.error = err instanceof CdekError ? err.message : 'СДЭК недоступен'
       }
-    } else {
-      // Только номер: логи площадки (панель Cloudflare, журнал Docker) — не место для имён и телефонов.
-      console.info(`[orders] ${order.number} сохранена (Telegram не настроен — уведомление не отправлено)`)
     }
 
-    return c.json<OrderResponse>({ number: order.number, total: order.total }, 201)
+    const order = createOrder(input, item, delivery, cdekState)
+
+    if (cdek && delivery.quote) {
+      try {
+        const uuid = await cdek.createOrder({
+          number: order.number,
+          shipmentPoint: sender.pointCode,
+          deliveryPoint: input.pointCode,
+          sender: { name: sender.name, phone: sender.phone },
+          recipient: { name: input.name, phone: input.phone },
+          item: { name: `${item.name}, ${item.color.toLowerCase()}, ${item.size}`, wareKey: item.sku, price: item.price, qty: item.qty },
+          pkg: packageFor(product),
+          deliveryCost: delivery.quote.sum,
+          prepaid: order.totals.prepayment,
+        })
+        order.cdek = { status: 'created', env: cdek.env, uuid }
+      } catch (err) {
+        console.error(`[orders] ${order.number}: СДЭК не создал заказ`, err)
+        order.cdek = { status: 'failed', env: cdek.env, error: err instanceof CdekError ? err.message : 'СДЭК недоступен' }
+      }
+    }
+
+    await platform.saveOrder(order)
+    platform.background(c, finishOrder(order))
+    return respond(order)
   })
 
   app.all('/api/*', (c) => c.json<ApiError>({ error: 'Not found' }, 404))

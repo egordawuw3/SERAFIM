@@ -1,6 +1,5 @@
 import { Suspense } from 'react'
 import { Outlet } from 'react-router'
-import { CartDrawer } from '@/widgets/CartDrawer'
 import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
 import { PageFallback } from '@/shared/ui/PageFallback'
@@ -22,7 +21,6 @@ export function Layout() {
         </Suspense>
       </main>
       <Footer />
-      <CartDrawer />
     </div>
   )
 }

@@ -1,6 +1,5 @@
-import { useEffect, useState } from 'react'
 import { MOCKUP_DISCLAIMER } from '@/entities/product/model/catalog'
-import { useSearchParams } from 'react-router'
+import { useNavigate, useSearchParams } from 'react-router'
 import { isColorSoldOut } from '@/entities/product/lib/availability'
 import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
@@ -8,27 +7,22 @@ import { ColorSelect } from '@/entities/product/ui/ColorSelect'
 import { SizePicker } from '@/entities/product/ui/SizePicker'
 import { FitGuide } from '@/entities/product/ui/FitGuide'
 import { SizeTable } from '@/entities/product/ui/SizeTable'
-import { toCartItem } from '@/features/cart/lib/toCartItem'
-import { useCart } from '@/features/cart/model/store'
+import { site } from '@/shared/config/site'
 import { formatPrice } from '@/shared/lib/format'
 import { useIsClient } from '@/shared/lib/useIsClient'
 import { PillButton } from '@/shared/ui/PillButton'
+import { pillClassName } from '@/shared/ui/pillClassName'
 import { ProductGallery } from './ProductGallery'
 
 export function ProductView({ product }: { product: Product }) {
-  const add = useCart((s) => s.add)
+  const navigate = useNavigate()
   const [params] = useSearchParams()
   // ?color=… из адреса — только после гидратации: в готовом HTML страница товара собрана с основным цветом.
   const isClient = useIsClient()
   const { color, size, selectColor, selectSize } = useProductSelection(product, (isClient && params.get('color')) || undefined)
-  const [added, setAdded] = useState(false)
   const colorSoldOut = isColorSoldOut(product, color)
-
-  useEffect(() => {
-    if (!added) return
-    const t = setTimeout(() => setAdded(false), 1800)
-    return () => clearTimeout(t)
-  }, [added])
+  // «Купить на Авито»: ссылка на товар, иначе на профиль продавца, иначе кнопки нет.
+  const avitoUrl = product.avitoUrl || site.avitoProfileUrl
 
   return (
     <div className="grid gap-10 px-4 pb-16 pt-4 md:px-10 lg:grid-cols-[minmax(0,1fr)_minmax(300px,400px)] lg:gap-16 lg:pt-10 xl:pr-[8vw]">
@@ -65,18 +59,26 @@ export function ProductView({ product }: { product: Product }) {
           )}
         </div>
 
-        <PillButton
-          variant="solid"
-          className="mt-5 h-12 w-full max-w-[340px] text-[12px]"
-          disabled={!size}
-          onClick={() => {
-            if (!size) return
-            add(toCartItem(product, color, size))
-            setAdded(true)
-          }}
-        >
-          {colorSoldOut ? 'Нет в наличии' : !size ? 'Выберите размер' : added ? 'Добавлено ✓' : 'В корзину'}
-        </PillButton>
+        {/* Ровно два действия: заказ на сайте (СДЭК, оплата при получении) и запасной путь — Авито. */}
+        <div className="mt-5 flex w-full max-w-[340px] flex-col gap-2.5">
+          <PillButton
+            variant="solid"
+            className="h-12 w-full text-[12px]"
+            disabled={!size}
+            onClick={() => {
+              if (!size) return
+              const query = new URLSearchParams({ product: product.slug, color: color.id, size })
+              navigate(`/checkout?${query}`)
+            }}
+          >
+            {colorSoldOut ? 'Нет в наличии' : !size ? 'Выберите размер' : 'Оформить заказ'}
+          </PillButton>
+          {avitoUrl && (
+            <a href={avitoUrl} target="_blank" rel="noreferrer" className={pillClassName('outline', 'h-11 w-full text-[11px]')}>
+              Купить на Авито
+            </a>
+          )}
+        </div>
 
         <div className="mt-8 max-w-[340px] space-y-7">
           <p className="text-ink/70">{product.shippingNote}</p>

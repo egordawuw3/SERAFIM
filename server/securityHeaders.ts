@@ -10,7 +10,8 @@ const CSP = [
   // 'unsafe-inline' — для style={{…}} (кружки цветов в фильтре).
   "style-src 'self' 'unsafe-inline'",
   "font-src 'self'",
-  "img-src 'self' data:",
+  // Плитки карты пунктов выдачи (OpenStreetMap) на странице заказа.
+  "img-src 'self' data: https://tile.openstreetmap.org",
   "connect-src 'self'",
   "object-src 'none'",
   "base-uri 'self'",

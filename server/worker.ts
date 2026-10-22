@@ -1,5 +1,6 @@
 import type { Hono } from 'hono'
 import { createApi } from './api.ts'
+import { deliveryFrom, type DeliveryEnv } from './cdek.ts'
 import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS } from './limits.ts'
 import type { Order } from './order.ts'
 
@@ -18,7 +19,7 @@ interface D1PreparedStatement {
 interface D1Database {
   prepare(query: string): D1PreparedStatement
 }
-interface Env {
+interface Env extends DeliveryEnv {
   DB: D1Database
   ASSETS: { fetch(request: Request): Promise<Response> }
   /** Секреты: wrangler secret put TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID. */
@@ -30,6 +31,9 @@ interface Env {
 
 function platformFor(env: Env) {
   return {
+    ...deliveryFrom(env),
+    // Ответ покупателю не ждёт номера СДЭК и Telegram: задача доживает после ответа (до 30 с).
+    background: (c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }, task: Promise<unknown>) => c.executionCtx.waitUntil(task),
     siteOrigin: env.SITE_ORIGIN?.replace(/\/+$/, '') ?? '',
     telegram: { token: env.TELEGRAM_BOT_TOKEN ?? '', chatId: env.TELEGRAM_CHAT_ID ?? '' },
     // Cloudflare сам подставляет настоящий IP посетителя — подделать его клиент не может.
@@ -49,7 +53,10 @@ function platformFor(env: Env) {
       return (row?.count ?? 1) <= ORDER_RATE_LIMIT.max
     },
     async saveOrder(order: Order) {
-      await env.DB.prepare('INSERT INTO orders (number, created_at, data) VALUES (?1, ?2, ?3)')
+      // Повторное сохранение того же заказа (пришёл номер СДЭК) обновляет запись.
+      await env.DB.prepare(
+        'INSERT INTO orders (number, created_at, data) VALUES (?1, ?2, ?3) ON CONFLICT(number) DO UPDATE SET data = excluded.data',
+      )
         .bind(order.number, order.createdAt, JSON.stringify(order))
         .run()
     },

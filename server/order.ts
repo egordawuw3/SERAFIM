@@ -1,44 +1,80 @@
 import { products } from '../src/entities/product/model/catalog.ts'
+import type { Product } from '../src/entities/product/model/types.ts'
 import type { OrderRequestParsed } from '../src/entities/order/model/schema.ts'
+import { orderTotals, type OrderTotals } from '../src/entities/order/model/pricing.ts'
 import { site } from '../src/shared/config/site.ts'
+import type { CdekPackage, CdekPoint, CdekQuote } from './cdek.ts'
 
-export interface OrderLine {
+export interface OrderItem {
+  productId: string
   name: string
   color: string
   size: string
   qty: number
   price: number
+  /** Артикул: ware_key в СДЭК. */
+  sku: string
+}
+
+export interface OrderDelivery {
+  cityCode: number
+  pointCode: string
+  /** Адрес ПВЗ — если СДЭК был доступен при оформлении. */
+  point?: Pick<CdekPoint, 'city' | 'address' | 'name' | 'workTime'>
+  quote?: CdekQuote
+  /** Пункт, описанный покупателем вручную (СДЭК не ответил при оформлении). */
+  note?: string
+}
+
+export interface OrderCdek {
+  /** created — заказ принят СДЭК; failed — не создан, продавец оформляет вручную; off — СДЭК не подключён. */
+  status: 'created' | 'failed' | 'off'
+  env?: 'test' | 'prod'
+  uuid?: string
+  number?: string
+  error?: string
 }
 
 export interface Order {
   number: string
   createdAt: string
-  customer: Omit<OrderRequestParsed, 'items' | 'consent' | 'offerAccepted'>
+  customer: Pick<OrderRequestParsed, 'name' | 'phone' | 'telegram' | 'comment'>
   /** Когда покупатель принял оферту. */
   offerAcceptedAt: string
   /** Когда дал отдельное согласие на обработку персональных данных (152-ФЗ: согласие нужно уметь подтвердить). */
   consentAt: string
   /** Редакция документов, на которые соглашался покупатель (дата из site.terms.documentsDate). */
   documentsVersion: string
-  lines: OrderLine[]
-  total: number
+  item: OrderItem
+  delivery: OrderDelivery
+  totals: OrderTotals
+  cdek: OrderCdek
 }
 
 export class OrderValidationError extends Error {}
 
-/** Пересчитывает корзину по серверному каталогу: цены и наличие с клиента не принимаются на веру. */
-function priceItems(items: OrderRequestParsed['items']): { lines: OrderLine[]; total: number } {
-  const lines = items.map((item) => {
-    const product = products.find((p) => p.id === item.productId)
-    const color = product?.colors.find((c) => c.id === item.colorId)
-    if (!product || !color) throw new OrderValidationError('Один из товаров больше недоступен. Обновите корзину.')
-    const size = product.sizes.find((s) => s === item.size)
-    if (!size || color.soldOut?.includes(size)) {
-      throw new OrderValidationError(`${product.name} (${color.name}, ${item.size}) закончился. Обновите корзину.`)
-    }
-    return { name: product.name, color: color.name, size, qty: item.qty, price: product.price }
-  })
-  return { lines, total: lines.reduce((sum, l) => sum + l.price * l.qty, 0) }
+/** Товар по серверному каталогу: цена и наличие с клиента не принимаются на веру. */
+export function resolveItem(input: Pick<OrderRequestParsed, 'productId' | 'colorId' | 'size' | 'qty'>): { product: Product; item: OrderItem } {
+  const product = products.find((p) => p.id === input.productId)
+  const color = product?.colors.find((c) => c.id === input.colorId)
+  if (!product || !color) throw new OrderValidationError('Этот товар больше недоступен. Обновите страницу.')
+  const size = product.sizes.find((s) => s === input.size)
+  if (!size || color.soldOut?.includes(size)) {
+    throw new OrderValidationError(`${product.name} (${color.name}, ${input.size}) закончился. Выберите другой размер.`)
+  }
+  return {
+    product,
+    item: { productId: product.id, name: product.name, color: color.name, size, qty: input.qty, price: product.price, sku: `${color.sku}/${size}` },
+  }
+}
+
+/** Вес и габариты посылки: свои у товара или значения по умолчанию из конфига. */
+export function packageFor(product: Product): CdekPackage {
+  const fallback = site.shipping.defaultPackage
+  return {
+    weightG: product.weightG ?? fallback.weightG,
+    dimsCm: product.dimsCm ?? (fallback.dimsCm as unknown as [number, number, number]),
+  }
 }
 
 /** Номер вида SRF-261005-K3F9: дата + случайный суффикс, удобно диктовать по телефону. */
@@ -50,9 +86,13 @@ function orderNumber(now = new Date()): string {
   return `SRF-${date}-${suffix}`
 }
 
-export function createOrder(input: OrderRequestParsed, now = new Date()): Order {
-  const { items, consent: _consent, offerAccepted: _offer, ...customer } = input
-  const { lines, total } = priceItems(items)
+export function createOrder(
+  input: OrderRequestParsed,
+  item: OrderItem,
+  delivery: OrderDelivery,
+  cdek: OrderCdek,
+  now = new Date(),
+): Order {
   const at = now.toISOString()
   return {
     number: orderNumber(now),
@@ -60,8 +100,10 @@ export function createOrder(input: OrderRequestParsed, now = new Date()): Order 
     offerAcceptedAt: at,
     consentAt: at,
     documentsVersion: site.terms.documentsDate,
-    customer,
-    lines,
-    total,
+    customer: { name: input.name, phone: input.phone, telegram: input.telegram, comment: input.comment },
+    item,
+    delivery,
+    totals: orderTotals(item.price, item.qty, delivery.quote?.sum ?? 0, site.shipping.prepaymentAmount),
+    cdek,
   }
 }
