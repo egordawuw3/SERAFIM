@@ -1,6 +1,8 @@
 import { NavLink, useLocation } from 'react-router'
-import { site } from '@/shared/config/site'
+import { countItems } from '@/features/cart/model/cart'
+import { useCart } from '@/features/cart/model/store'
 import { cn } from '@/shared/lib/cn'
+import { prefetch } from '@/shared/lib/prefetch'
 import { useScrolled } from '@/shared/lib/useScrolled'
 import { Logo } from '@/shared/ui/Logo'
 import { useBannerInView } from '@/shared/lib/bannerVisibility'
@@ -9,6 +11,8 @@ import { useBannerInView } from '@/shared/lib/bannerVisibility'
 const linkCls = 'link-hover inline-flex min-h-6 items-center transition-colors duration-300 hover:text-ink'
 
 export function Header() {
+  const count = useCart((s) => countItems(s.items))
+  const openCart = useCart((s) => s.open)
   const scrolled = useScrolled()
   // На главной, пока виден баннер с огромным SERAFIM, логотип в шапке прячем — без двойного названия подряд.
   const isHome = useLocation().pathname === '/'
@@ -38,15 +42,17 @@ export function Header() {
           )}
         />
 
-        {/* Корзины нет: заказ оформляется из карточки товара. Справа — канал бренда, где выходят новые дропы. */}
-        <a
-          href={site.contacts.telegramChannel}
-          target="_blank"
-          rel="noreferrer"
-          className={cn(linkCls, 'text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70')}
+        <button
+          type="button"
+          onClick={openCart}
+          onPointerEnter={() => prefetch('cart')}
+          onFocus={() => prefetch('cart')}
+          aria-haspopup="dialog"
+          // Без aria-label: доступное имя = видимый текст «Корзина (N)» (WCAG 2.5.3 Label in Name).
+          className={cn(linkCls, 'min-h-6 text-[10px] font-medium uppercase tracking-[0.2em] text-ink/70')}
         >
-          Telegram
-        </a>
+          Корзина ({count})
+        </button>
       </div>
     </header>
   )

@@ -7,6 +7,8 @@ import { ColorSelect } from '@/entities/product/ui/ColorSelect'
 import { SizePicker } from '@/entities/product/ui/SizePicker'
 import { FitGuide } from '@/entities/product/ui/FitGuide'
 import { SizeTable } from '@/entities/product/ui/SizeTable'
+import { toCartItem } from '@/features/cart/lib/toCartItem'
+import { useCart } from '@/features/cart/model/store'
 import { site } from '@/shared/config/site'
 import { formatPrice } from '@/shared/lib/format'
 import { useIsClient } from '@/shared/lib/useIsClient'
@@ -16,6 +18,7 @@ import { ProductGallery } from './ProductGallery'
 
 export function ProductView({ product }: { product: Product }) {
   const navigate = useNavigate()
+  const add = useCart((s) => s.add)
   const [params] = useSearchParams()
   // ?color=… из адреса — только после гидратации: в готовом HTML страница товара собрана с основным цветом.
   const isClient = useIsClient()
@@ -59,7 +62,10 @@ export function ProductView({ product }: { product: Product }) {
           )}
         </div>
 
-        {/* Ровно два действия: заказ на сайте (СДЭК, оплата при получении) и запасной путь — Авито. */}
+        {/*
+         * Главное — «Оформить заказ»: вещь в корзину и сразу к оформлению (СДЭК, оплата при получении).
+         * «В корзину» — собрать несколько вещей в одну посылку. Авито — запасной путь, если есть ссылка.
+         */}
         <div className="mt-5 flex w-full max-w-[340px] flex-col gap-2.5">
           <PillButton
             variant="solid"
@@ -67,12 +73,17 @@ export function ProductView({ product }: { product: Product }) {
             disabled={!size}
             onClick={() => {
               if (!size) return
-              const query = new URLSearchParams({ product: product.slug, color: color.id, size })
-              navigate(`/checkout?${query}`)
+              add(toCartItem(product, color, size), false)
+              navigate('/checkout')
             }}
           >
             {colorSoldOut ? 'Нет в наличии' : !size ? 'Выберите размер' : 'Оформить заказ'}
           </PillButton>
+          {size && (
+            <PillButton variant="outline" className="h-11 w-full text-[11px]" onClick={() => add(toCartItem(product, color, size))}>
+              В корзину
+            </PillButton>
+          )}
           {avitoUrl && (
             <a href={avitoUrl} target="_blank" rel="noreferrer" className={pillClassName('outline', 'h-11 w-full text-[11px]')}>
               Купить на Авито

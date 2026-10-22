@@ -48,8 +48,9 @@ export const fetchCities = (q: string, signal?: AbortSignal) =>
 export const fetchPoints = (cityCode: number, signal?: AbortSignal) =>
   getJson<{ points: PickupPoint[] }>(`/api/cdek/points?city=${cityCode}`, signal).then((d) => d.points)
 
-export const fetchQuote = (productId: string, qty: number, cityCode: number, signal?: AbortSignal) =>
+/** Доставка посылки из этих вещей (одна посылка на весь заказ). */
+export const fetchQuote = (items: { productId: string; qty: number }[], cityCode: number, signal?: AbortSignal) =>
   getJson<{ quote: DeliveryQuote; totals: OrderTotals }>(
-    `/api/cdek/quote?${new URLSearchParams({ product: productId, qty: String(qty), city: String(cityCode) })}`,
+    `/api/cdek/quote?${new URLSearchParams({ items: items.map((i) => `${i.productId}:${i.qty}`).join(','), city: String(cityCode) })}`,
     signal,
   )

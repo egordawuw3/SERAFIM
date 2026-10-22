@@ -1,6 +1,6 @@
 /*
- * Итог заказа: товар + доставка. Общий для сайта (показ суммы) и сервера (сумма в СДЭК и в Telegram) —
- * считается одинаково, а сервер всё равно пересчитывает цену и доставку сам.
+ * Итог заказа: товары + доставка. Общий для сайта (показ суммы) и сервера (сумма в СДЭК и в Telegram) —
+ * считается одинаково, а сервер всё равно пересчитывает цены и доставку сам.
  */
 export interface OrderTotals {
   goods: number
@@ -12,8 +12,7 @@ export interface OrderTotals {
   payOnPickup: number
 }
 
-export function orderTotals(price: number, qty: number, delivery: number, prepaymentAmount = 0): OrderTotals {
-  const goods = price * qty
+export function orderTotals(goods: number, delivery: number, prepaymentAmount = 0): OrderTotals {
   const total = goods + delivery
   const prepayment = Math.min(Math.max(0, prepaymentAmount), total)
   return { goods, delivery, total, prepayment, payOnPickup: total - prepayment }

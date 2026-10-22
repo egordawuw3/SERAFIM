@@ -3,7 +3,7 @@
  * вызывают prefetch('product') при наведении — без прямого импорта страниц, слои не смешиваются.
  * Пока пользователь ведёт мышь к карточке, код модалки уже скачивается: клик открывает её без задержки.
  */
-type ChunkKey = 'product'
+type ChunkKey = 'product' | 'cart'
 
 const loaders = new Map<ChunkKey, () => Promise<unknown>>()
 const started = new Set<ChunkKey>()

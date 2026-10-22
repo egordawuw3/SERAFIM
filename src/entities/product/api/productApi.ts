@@ -10,3 +10,6 @@ export const getProducts = (): Product[] => products
 export const getProductBySlug = (slug: string): Product | undefined =>
   products.find((p) => p.slug === slug)
 
+export const getProductById = (id: string): Product | undefined =>
+  products.find((p) => p.id === id)
+

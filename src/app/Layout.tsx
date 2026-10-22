@@ -1,5 +1,6 @@
 import { Suspense } from 'react'
 import { Outlet } from 'react-router'
+import { CartDrawer } from '@/widgets/CartDrawer'
 import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
 import { TelegramPopup } from '@/widgets/TelegramPopup'
@@ -23,6 +24,7 @@ export function Layout() {
       </main>
       <Footer />
       <TelegramPopup />
+      <CartDrawer />
     </div>
   )
 }

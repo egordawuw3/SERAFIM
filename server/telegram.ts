@@ -21,7 +21,7 @@ function cdekLine(order: Order): string {
 }
 
 export function formatOrderMessage(order: Order): string {
-  const { customer: c, item, delivery, totals } = order
+  const { customer: c, items, delivery, totals } = order
   const phoneHref = `tel:${c.phone.replace(/[^\d+]/g, '')}`
   const point = delivery.note
     ? `указан покупателем: ${escapeHtml(delivery.note)}`
@@ -32,7 +32,7 @@ export function formatOrderMessage(order: Order): string {
   const rows = [
     `<b>Новый заказ ${order.number}</b>`,
     '',
-    `<b>Товар:</b> ${escapeHtml(item.name)} — ${escapeHtml(item.color)}, ${escapeHtml(item.size)} × ${item.qty} = ${rub(item.price * item.qty)}`,
+    ...items.map((i) => `• ${escapeHtml(i.name)} — ${escapeHtml(i.color)}, ${escapeHtml(i.size)} × ${i.qty} = ${rub(i.price * i.qty)}`),
     quote
       ? `<b>Доставка СДЭК:</b> ${rub(quote.sum)}${quote.periodMax ? ` (${quote.periodMin}–${quote.periodMax} дн.)` : ''}`
       : '<b>Доставка СДЭК:</b> не рассчитана — уточните с покупателем',

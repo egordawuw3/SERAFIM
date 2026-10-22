@@ -16,7 +16,16 @@ import { products } from '../src/entities/product/model/catalog.ts'
 import { site } from '../src/shared/config/site.ts'
 import { CdekError, type CdekClient, type CdekPoint, type CdekQuote } from './cdek.ts'
 import { rateLimitKey } from './limits.ts'
-import { createOrder, OrderValidationError, packageFor, resolveItem, type Order, type OrderCdek, type OrderDelivery } from './order.ts'
+import {
+  createOrder,
+  OrderValidationError,
+  packageFor,
+  resolveItems,
+  unitPackage,
+  type Order,
+  type OrderCdek,
+  type OrderDelivery,
+} from './order.ts'
 import { createRateLimiter } from './rateLimit.ts'
 import { SECURITY_HEADERS } from './securityHeaders.ts'
 import { formatOrderMessage, sendToTelegram, type TelegramConfig } from './telegram.ts'
@@ -82,11 +91,11 @@ export function createApi(platform: ApiPlatform): Hono {
     return point.cityCode
   }
 
-  const quoteFor = async (productId: string, qty: number, toCity: number): Promise<CdekQuote> => {
-    const product = products.find((p) => p.id === productId)
-    if (!product) throw new OrderValidationError('Товар не найден')
+  /** Доставка посылки из этих вещей в город. Ключ кеша — состав посылки, а не порядок позиций. */
+  const quoteFor = async (lines: { product: (typeof products)[number]; qty: number }[], toCity: number): Promise<CdekQuote> => {
     const from = await senderCity()
-    return quoteCache(`${productId}:${qty}:${toCity}`, () => cdek!.quote(from, toCity, packageFor(product), qty))
+    const key = lines.map((l) => `${l.product.id}*${l.qty}`).sort().join(',')
+    return quoteCache(`${key}:${toCity}`, () => cdek!.quote(from, toCity, packageFor(lines)))
   }
 
   app.use('*', async (c, next) => {
@@ -156,16 +165,23 @@ export function createApi(platform: ApiPlatform): Hono {
     }
   })
 
+  // ?city=424&items=p2:1,p5:2 — товары и количество (размер на вес не влияет).
   app.get('/api/cdek/quote', async (c) => {
     const city = Number(c.req.query('city'))
-    const qty = Number(c.req.query('qty') ?? 1)
-    const product = products.find((p) => p.id === c.req.query('product'))
-    if (!product || !Number.isInteger(city) || city <= 0 || !Number.isInteger(qty) || qty < 1 || qty > MAX_ITEM_QTY) {
-      return c.json<ApiError>({ error: 'Некорректный запрос' }, 400)
-    }
+    const lines = (c.req.query('items') ?? '')
+      .split(',')
+      .slice(0, 30)
+      .map((part) => {
+        const [id, n] = part.split(':')
+        return { product: products.find((p) => p.id === id), qty: Number(n) }
+      })
+    const valid = lines.length > 0 && lines.every((l) => l.product && Number.isInteger(l.qty) && l.qty >= 1 && l.qty <= MAX_ITEM_QTY)
+    if (!valid || !Number.isInteger(city) || city <= 0) return c.json<ApiError>({ error: 'Некорректный запрос' }, 400)
+    const known = lines as { product: (typeof products)[number]; qty: number }[]
     try {
-      const quote = await quoteFor(product.id, qty, city)
-      return c.json({ quote, totals: orderTotals(product.price, qty, quote.sum, site.shipping.prepaymentAmount) })
+      const quote = await quoteFor(known, city)
+      const goods = known.reduce((sum, l) => sum + l.product.price * l.qty, 0)
+      return c.json({ quote, totals: orderTotals(goods, quote.sum, site.shipping.prepaymentAmount) })
     } catch (err) {
       console.error('[cdek] quote', err)
       return deliveryUnavailable(c)
@@ -238,12 +254,13 @@ export function createApi(platform: ApiPlatform): Hono {
 
     let resolved
     try {
-      resolved = resolveItem(input)
+      resolved = resolveItems(input.items)
     } catch (err) {
       if (err instanceof OrderValidationError) return c.json<ApiError>({ error: err.message }, 409)
       throw err
     }
-    const { product, item } = resolved
+    const items = resolved.map((r) => r.item)
+    const lines = resolved.map((r) => ({ product: r.product, qty: r.item.qty }))
 
     const respond = (order: Order) =>
       c.json<OrderResponse>(
@@ -257,7 +274,7 @@ export function createApi(platform: ApiPlatform): Hono {
       ? { status: 'failed', env: cdek?.env, error: 'пункт выдачи не выбран на сайте — покупатель указал его сам' }
       : { status: 'off' }
 
-    if (isBot) return respond(createOrder(input, item, delivery, cdekState))
+    if (isBot) return respond(createOrder(input, items, delivery, cdekState))
 
     // Пункт выдачи и доставку сервер проверяет и считает сам: суммы из браузера не принимаются на веру.
     // Если СДЭК недоступен — заказ всё равно принимается и уходит продавцу с пометкой «оформите вручную».
@@ -269,14 +286,14 @@ export function createApi(platform: ApiPlatform): Hono {
           return c.json<ApiError>({ error: 'Проверьте поля формы', fields: { pointCode: 'Пункт выдачи не найден — выберите другой' } }, 400)
         }
         delivery.point = { city: point.city, address: point.address, name: point.name, workTime: point.workTime }
-        delivery.quote = await quoteFor(product.id, item.qty, input.cityCode)
+        delivery.quote = await quoteFor(lines, input.cityCode)
       } catch (err) {
         console.error('[orders] СДЭК: проверка пункта или расчёт доставки', err)
         cdekState.error = err instanceof CdekError ? err.message : 'СДЭК недоступен'
       }
     }
 
-    const order = createOrder(input, item, delivery, cdekState)
+    const order = createOrder(input, items, delivery, cdekState)
 
     if (cdek && delivery.quote) {
       try {
@@ -286,8 +303,14 @@ export function createApi(platform: ApiPlatform): Hono {
           deliveryPoint: input.pointCode,
           sender: { name: sender.name, phone: sender.phone },
           recipient: { name: input.name, phone: input.phone },
-          item: { name: `${item.name}, ${item.color.toLowerCase()}, ${item.size}`, wareKey: item.sku, price: item.price, qty: item.qty },
-          pkg: packageFor(product),
+          items: resolved.map(({ product, item }) => ({
+            name: `${item.name}, ${item.color.toLowerCase()}, ${item.size}`,
+            wareKey: item.sku,
+            price: item.price,
+            qty: item.qty,
+            weightG: unitPackage(product).weightG,
+          })),
+          pkg: packageFor(lines),
           deliveryCost: delivery.quote.sum,
           prepaid: order.totals.prepayment,
         })

@@ -45,7 +45,7 @@ export interface Order {
   consentAt: string
   /** Редакция документов, на которые соглашался покупатель (дата из site.terms.documentsDate). */
   documentsVersion: string
-  item: OrderItem
+  items: OrderItem[]
   delivery: OrderDelivery
   totals: OrderTotals
   cdek: OrderCdek
@@ -53,28 +53,54 @@ export interface Order {
 
 export class OrderValidationError extends Error {}
 
-/** Товар по серверному каталогу: цена и наличие с клиента не принимаются на веру. */
-export function resolveItem(input: Pick<OrderRequestParsed, 'productId' | 'colorId' | 'size' | 'qty'>): { product: Product; item: OrderItem } {
-  const product = products.find((p) => p.id === input.productId)
-  const color = product?.colors.find((c) => c.id === input.colorId)
-  if (!product || !color) throw new OrderValidationError('Этот товар больше недоступен. Обновите страницу.')
-  const size = product.sizes.find((s) => s === input.size)
-  if (!size || color.soldOut?.includes(size)) {
-    throw new OrderValidationError(`${product.name} (${color.name}, ${input.size}) закончился. Выберите другой размер.`)
-  }
-  return {
-    product,
-    item: { productId: product.id, name: product.name, color: color.name, size, qty: input.qty, price: product.price, sku: `${color.sku}/${size}` },
-  }
+export interface ResolvedItem {
+  product: Product
+  item: OrderItem
 }
 
-/** Вес и габариты посылки: свои у товара или значения по умолчанию из конфига. */
-export function packageFor(product: Product): CdekPackage {
+/** Товары по серверному каталогу: цены и наличие с клиента не принимаются на веру. */
+export function resolveItems(items: OrderRequestParsed['items']): ResolvedItem[] {
+  return items.map((input) => {
+    const product = products.find((p) => p.id === input.productId)
+    const color = product?.colors.find((c) => c.id === input.colorId)
+    if (!product || !color) throw new OrderValidationError('Один из товаров больше недоступен. Обновите корзину.')
+    const size = product.sizes.find((s) => s === input.size)
+    if (!size || color.soldOut?.includes(size)) {
+      throw new OrderValidationError(`${product.name} (${color.name}, ${input.size}) закончился. Обновите корзину.`)
+    }
+    return {
+      product,
+      item: { productId: product.id, name: product.name, color: color.name, size, qty: input.qty, price: product.price, sku: `${color.sku}/${size}` },
+    }
+  })
+}
+
+/** Вес и габариты одной вещи в упаковке: свои у товара или значения по умолчанию из конфига. */
+export function unitPackage(product: Product): CdekPackage {
   const fallback = site.shipping.defaultPackage
   return {
     weightG: product.weightG ?? fallback.weightG,
     dimsCm: product.dimsCm ?? (fallback.dimsCm as unknown as [number, number, number]),
   }
+}
+
+/**
+ * Посылка из нескольких вещей: вес — сумма, вещи кладутся стопкой (длина и ширина — наибольшие, высота — сумма).
+ * Для расчёта тарифа СДЭК этого достаточно; точнее упакует продавец, вес СДЭК перепроверит при приёме.
+ */
+export function packageFor(lines: { product: Product; qty: number }[]): CdekPackage {
+  let weightG = 0
+  let length = 0
+  let width = 0
+  let height = 0
+  for (const { product, qty } of lines) {
+    const unit = unitPackage(product)
+    weightG += unit.weightG * qty
+    length = Math.max(length, unit.dimsCm[0])
+    width = Math.max(width, unit.dimsCm[1])
+    height += unit.dimsCm[2] * qty
+  }
+  return { weightG, dimsCm: [length, width, height] }
 }
 
 /** Номер вида SRF-261005-K3F9: дата + случайный суффикс, удобно диктовать по телефону. */
@@ -88,7 +114,7 @@ function orderNumber(now = new Date()): string {
 
 export function createOrder(
   input: OrderRequestParsed,
-  item: OrderItem,
+  items: OrderItem[],
   delivery: OrderDelivery,
   cdek: OrderCdek,
   now = new Date(),
@@ -101,9 +127,13 @@ export function createOrder(
     consentAt: at,
     documentsVersion: site.terms.documentsDate,
     customer: { name: input.name, phone: input.phone, telegram: input.telegram, comment: input.comment },
-    item,
+    items,
     delivery,
-    totals: orderTotals(item.price, item.qty, delivery.quote?.sum ?? 0, site.shipping.prepaymentAmount),
+    totals: orderTotals(
+      items.reduce((sum, i) => sum + i.price * i.qty, 0),
+      delivery.quote?.sum ?? 0,
+      site.shipping.prepaymentAmount,
+    ),
     cdek,
   }
 }

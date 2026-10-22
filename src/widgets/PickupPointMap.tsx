@@ -34,6 +34,8 @@ export default function PickupPointMap({ points, selected, onSelect }: Props) {
       maxZoom: 19,
       attribution: '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noreferrer">OpenStreetMap</a>',
     }).addTo(m)
+    // Без префикса «Leaflet» с флажком: подпись OpenStreetMap (обязательна по лицензии) остаётся.
+    m.attributionControl.setPrefix(false)
     map.current = m
     return () => {
       m.remove()

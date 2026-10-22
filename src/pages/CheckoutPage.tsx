@@ -16,19 +16,19 @@ import { MANUAL_POINT, orderRequestSchema, type OrderRequest } from '@/entities/
 import { getProductBySlug } from '@/entities/product/api/productApi'
 import { findColor, isSizeAvailable } from '@/entities/product/lib/availability'
 import type { Size } from '@/entities/product/model/types'
-import { ProductPhoto } from '@/entities/product/ui/ProductPhoto'
-import { SizePicker } from '@/entities/product/ui/SizePicker'
+import { toCartItem } from '@/features/cart/lib/toCartItem'
+import { countItems, itemKey, subtotal } from '@/features/cart/model/cart'
+import { useCart, useCartHydrated } from '@/features/cart/model/store'
 import { site } from '@/shared/config/site'
 import { cn } from '@/shared/lib/cn'
 import { formatPrice } from '@/shared/lib/format'
 import { formatPhoneInput } from '@/shared/lib/phone'
-import { useIsClient } from '@/shared/lib/useIsClient'
 import { Field, Input, Textarea } from '@/shared/ui/Field'
 
 const PickupPointMap = lazy(() => import('@/widgets/PickupPointMap'))
 
 type FieldKey =
-  | 'size'
+  | 'items'
   | 'cityCode'
   | 'pointCode'
   | 'deliveryNote'
@@ -44,32 +44,39 @@ type FieldErrors = Partial<Record<FieldKey, string>>
 const linkCls = 'underline underline-offset-2 hover:text-ink'
 
 /*
- * Оформление заказа: один товар (размер из карточки или из ссылки /p/<id>?size=M&order=1), доставка СДЭК до пункта
- * выдачи, оплата при получении. Город и пункт — из API СДЭК через наш сервер (ключи только там). Если СДЭК не отвечает,
- * форма переходит в ручной режим: покупатель пишет город и пункт сам, заказ уходит продавцу и не теряется.
+ * Оформление заказа: вещи из корзины одной посылкой СДЭК до пункта выдачи, оплата при получении. Ссылка из переписки
+ * /p/<id>?size=M&order=1 приходит сюда как ?add=<slug>&size=M — вещь добавляется в корзину. Город и пункт — из API СДЭК
+ * через наш сервер (ключи только там). Если СДЭК не отвечает, форма переходит в ручной режим: покупатель пишет город
+ * и пункт сам, заказ уходит продавцу и не теряется.
  */
 export function CheckoutPage() {
   const navigate = useNavigate()
   const [params] = useSearchParams()
-  // Параметры адреса читаем после гидратации: готовый HTML страницы собран без них.
-  const isClient = useIsClient()
-  const product = isClient ? getProductBySlug(params.get('product') ?? '') : undefined
-  const color = product ? findColor(product, params.get('color')) : undefined
+  const hydrated = useCartHydrated()
+  const items = useCart((s) => s.items)
+  const addToCart = useCart((s) => s.add)
+  const setItemQty = useCart((s) => s.setQty)
+  const removeItem = useCart((s) => s.remove)
+  const clearCart = useCart((s) => s.clear)
 
-  const initialSize = (() => {
-    if (!product || !color) return undefined
-    if (product.sizes.length === 1) return isSizeAvailable(color, product.sizes[0]) ? product.sizes[0] : undefined
-    const s = params.get('size')?.toUpperCase() as Size | undefined
-    return s && product.sizes.includes(s) && isSizeAvailable(color, s) ? s : undefined
-  })()
-
-  const [size, setSize] = useState<Size | undefined>()
-  const [sizeTouched, setSizeTouched] = useState(false)
-  const effectiveSize = sizeTouched ? size : initialSize
-  const [qty, setQty] = useState(1)
+  // ?add=<slug>&size=M&color=… — добавить вещь (один раз, после того как корзина подхвачена) и убрать параметры из адреса.
+  const addSlug = params.get('add')
+  useEffect(() => {
+    if (!hydrated || !addSlug) return
+    const product = getProductBySlug(addSlug)
+    if (product) {
+      const color = findColor(product, params.get('color'))
+      const wanted = (params.get('size')?.toUpperCase() ?? (product.sizes.length === 1 ? product.sizes[0] : '')) as Size
+      if (product.sizes.includes(wanted) && isSizeAvailable(color, wanted)) {
+        const already = useCart.getState().items.some((i) => itemKey(i) === itemKey({ productId: product.id, colorId: color.id, size: wanted }))
+        if (!already) addToCart(toCartItem(product, color, wanted), false)
+      }
+    }
+    navigate('/checkout', { replace: true })
+  }, [hydrated, addSlug, params, addToCart, navigate])
 
   const [city, setCity] = useState<City | null>(null)
-  // Ответы привязаны к запросу (город, количество): пока ключ не совпал с текущим — идёт загрузка.
+  // Ответы привязаны к запросу (город, состав корзины): пока ключ не совпал с текущим — идёт загрузка.
   const [pointsFor, setPointsFor] = useState<{ city: number; points: PickupPoint[] } | null>(null)
   const [pointCode, setPointCode] = useState<string | null>(null)
   const [quoteFor, setQuoteFor] = useState<{ key: string; quote: DeliveryQuote | null } | null>(null)
@@ -103,49 +110,54 @@ export function CheckoutPage() {
     return () => ctrl.abort()
   }, [city])
 
-  // Доставка: зависит от города и количества (вес посылки).
-  const productId = product?.id
-  const quoteKey = city && productId ? `${productId}:${city.code}:${qty}` : null
+  // Доставка: зависит от города и состава посылки (вес и габариты), размер не важен.
+  const parcel = useMemo(() => {
+    const byProduct = new Map<string, number>()
+    for (const i of items) byProduct.set(i.productId, (byProduct.get(i.productId) ?? 0) + i.qty)
+    return [...byProduct].map(([productId, qty]) => ({ productId, qty }))
+  }, [items])
+  const parcelKey = parcel.map((l) => `${l.productId}*${l.qty}`).join(',')
+  const quoteKey = city && parcel.length ? `${parcelKey}:${city.code}` : null
   useEffect(() => {
-    if (!city || !productId || !quoteKey) return
+    if (!city || !quoteKey) return
     const ctrl = new AbortController()
-    fetchQuote(productId, qty, city.code, ctrl.signal)
+    fetchQuote(parcel, city.code, ctrl.signal)
       .then((d) => setQuoteFor({ key: quoteKey, quote: d.quote }))
       .catch((err: Error) => {
         if (err.name !== 'AbortError') setQuoteFor({ key: quoteKey, quote: null })
       })
     return () => ctrl.abort()
-  }, [city, qty, productId, quoteKey])
+    // parcel меняется вместе с quoteKey — отдельно его не отслеживаем.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [city, quoteKey])
 
   const points = city && pointsFor?.city === city.code ? pointsFor.points : null
   const quoteLoading = quoteKey !== null && quoteFor?.key !== quoteKey
   const quote = !quoteLoading && quoteFor ? quoteFor.quote : null
 
-  if (isClient && (!product || !color)) {
+  if (!hydrated || addSlug) return <section className="flex-1" />
+
+  if (items.length === 0) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-32 text-center font-mono">
-        <h1 className="font-sans text-2xl font-light uppercase tracking-widest">Выберите вещь</h1>
-        <p className="max-w-md text-[12px] text-ink/70">Откройте карточку товара, выберите размер и нажмите «Оформить заказ».</p>
+        <h1 className="font-sans text-2xl font-light uppercase tracking-widest">Корзина пуста</h1>
+        <p className="max-w-md text-[12px] text-ink/70">Откройте карточку товара, выберите размер и нажмите «Оформить заказ» или «В корзину».</p>
         <Link to="/#catalog" className="link-hover text-[12px] uppercase tracking-[0.15em]">
           Перейти в каталог →
         </Link>
       </section>
     )
   }
-  if (!product || !color) return <section className="flex-1" />
 
-  const totals = orderTotals(product.price, qty, quote?.sum ?? 0, site.shipping.prepaymentAmount)
+  const totals = orderTotals(subtotal(items), quote?.sum ?? 0, site.shipping.prepaymentAmount)
   const selectedPoint = points?.find((p) => p.code === pointCode) ?? null
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault()
-    if (submitting || !product || !color) return
+    if (submitting) return
 
     const payload: OrderRequest = {
-      productId: product.id,
-      colorId: color.id,
-      size: effectiveSize ?? '',
-      qty,
+      items: items.map(({ productId, colorId, size, qty }) => ({ productId, colorId, size, qty })),
       cityCode: manual ? 0 : (city?.code ?? 0),
       pointCode: manual ? MANUAL_POINT : (pointCode ?? ''),
       deliveryNote: manual ? deliveryNote : '',
@@ -179,6 +191,7 @@ export function CheckoutPage() {
     setErrors({})
     try {
       const order = await submitOrder(payload, honeypot)
+      clearCart()
       navigate('/checkout/success', { replace: true, state: { order } })
     } catch (err) {
       const fields = err instanceof OrderSubmitError ? err.fields : {}
@@ -189,8 +202,6 @@ export function CheckoutPage() {
     }
   }
 
-  const front = color.images[0]
-
   return (
     <section className="w-full px-4 pb-24 pt-6 md:px-12 md:pt-10">
       <h1 className="mb-8 border-b border-ink/10 pb-6 text-3xl font-light uppercase tracking-widest md:mb-12 md:text-4xl">
@@ -198,44 +209,37 @@ export function CheckoutPage() {
       </h1>
 
       <form onSubmit={onSubmit} noValidate className="grid gap-12 font-mono text-[12px] lg:grid-cols-[minmax(0,1fr)_400px] lg:gap-20">
-        <div className="max-w-2xl space-y-12">
-          {/* Товар */}
-          <fieldset className="space-y-5">
-            <legend className="mb-5 uppercase tracking-[0.12em]">Товар</legend>
-            <div className="flex gap-4">
-              <div className="h-[100px] w-20 shrink-0 overflow-hidden bg-paper-deep">
-                <ProductPhoto image={front} alt="" sizes="80px" className="h-full w-full object-cover" />
-              </div>
-              <div className="min-w-0">
-                <p className="font-sans text-[18px] font-light leading-snug text-ink">{product.name}</p>
-                <p className="mt-1 text-ink/70">{color.name}</p>
-                <p className="mt-1 text-ink">{formatPrice(product.price)}</p>
-              </div>
-            </div>
-            {product.sizes.length > 1 ? (
-              <div>
-                <SizePicker
-                  product={product}
-                  color={color}
-                  value={effectiveSize}
-                  onChange={(s) => {
-                    setSize(s)
-                    setSizeTouched(true)
-                    clearError('size')
-                  }}
-                />
-                {errors.size && <p role="alert" className="mt-1.5 text-[11px] text-red-700">{errors.size}</p>}
-              </div>
-            ) : (
-              <p>
-                <span className="text-ink/70">Размер: </span>единый
-              </p>
-            )}
-            <QtyStepper value={qty} onChange={setQty} />
+        <div className="min-w-0 max-w-2xl space-y-12">
+          {/* Товары */}
+          <fieldset className="min-w-0 space-y-4">
+            <legend className="mb-5 uppercase tracking-[0.12em]">Товары</legend>
+            <ul className="divide-y divide-ink/10">
+              {items.map((i) => {
+                const key = itemKey(i)
+                return (
+                  <li key={key} className="flex gap-4 py-4 first:pt-0">
+                    <img src={i.image} alt="" width={80} height={100} className="h-[100px] w-20 shrink-0 bg-paper-deep object-cover" />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-sans text-[16px] font-light leading-snug text-ink">{i.name}</p>
+                      <p className="mt-1 text-ink/70">
+                        {i.colorName} · {i.size === 'ONE SIZE' ? 'единый размер' : `размер ${i.size}`}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <QtyStepper value={i.qty} onChange={(n) => setItemQty(key, n)} />
+                        <button type="button" onClick={() => removeItem(key)} className="link-hover text-ink/70 hover:text-ink">
+                          Удалить
+                        </button>
+                      </div>
+                    </div>
+                    <p className="shrink-0 text-ink">{formatPrice(i.price * i.qty)}</p>
+                  </li>
+                )
+              })}
+            </ul>
+            {errors.items && <p role="alert" className="text-[11px] text-red-700">{errors.items}</p>}
           </fieldset>
-
           {/* Доставка */}
-          <fieldset className="space-y-5">
+          <fieldset className="min-w-0 space-y-5">
             <legend className="mb-5 uppercase tracking-[0.12em]">Доставка СДЭК до пункта выдачи</legend>
             {manual ? (
               <Field
@@ -289,7 +293,7 @@ export function CheckoutPage() {
           </fieldset>
 
           {/* Получатель */}
-          <fieldset className="space-y-5">
+          <fieldset className="min-w-0 space-y-5">
             <legend className="mb-5 uppercase tracking-[0.12em]">Получатель</legend>
             <Field label="Имя и фамилия" hint="Как в паспорте — СДЭК выдаёт посылку по документу" error={errors.name}>
               <Input
@@ -349,7 +353,7 @@ export function CheckoutPage() {
         <aside className="h-fit rounded-lg bg-white p-6 lg:sticky lg:top-24">
           <p className="mb-5 uppercase tracking-[0.12em]">Ваш заказ</p>
           <dl className="space-y-2 border-b border-ink/10 pb-5">
-            <Row label={`${product.name}${effectiveSize ? `, ${effectiveSize}` : ''} × ${qty}`} value={formatPrice(totals.goods)} />
+            <Row label={`Товары · ${countItems(items)} шт.`} value={formatPrice(totals.goods)} />
             <Row label="Доставка СДЭК" value={quote ? formatPrice(quote.sum) : '—'} />
             {selectedPoint && <p className="text-[11px] leading-relaxed text-ink/70">Пункт: {selectedPoint.address}</p>}
           </dl>
@@ -417,7 +421,7 @@ export function CheckoutPage() {
 
 /** Поля, ошибки которых показываются у самих полей (остальные — общей ошибкой формы). */
 const FIELD_ORDER: Record<string, true> = {
-  size: true,
+  items: true,
   cityCode: true,
   pointCode: true,
   deliveryNote: true,

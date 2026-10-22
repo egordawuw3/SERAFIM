@@ -62,10 +62,7 @@ beforeAll(async () => {
 })
 
 const validOrder = {
-  productId: 'p2',
-  colorId: 'grey',
-  size: 'M',
-  qty: 1,
+  items: [{ productId: 'p2', colorId: 'grey', size: 'M', qty: 1 }],
   cityCode: 424,
   pointCode: 'KZN3',
   deliveryNote: '',
@@ -98,7 +95,7 @@ describe('POST /api/orders', () => {
     const saved = lastSaved()
     expect(saved.customer.phone).toBe('+79991234567')
     expect(saved.customer.telegram).toBe('ivan_petrov')
-    expect(saved.item).toMatchObject({ name: 'Худи The only way', size: 'M', price: 4500 })
+    expect(saved.items[0]).toMatchObject({ name: 'Худи The only way', size: 'M', price: 4500 })
     expect(saved.delivery.point?.address).toBe('ул. Спартаковская, 2')
     expect(saved.cdek).toMatchObject({ status: 'created', env: 'test', uuid: 'uuid-1' })
     expect(saved.consentAt).toBe(saved.createdAt)
@@ -108,6 +105,29 @@ describe('POST /api/orders', () => {
     expect(sent.delivery_point).toBe('KZN3')
     expect(sent.delivery_recipient_cost.value).toBe(282)
     expect(sent.packages[0].items[0].payment.value).toBe(4500)
+  })
+
+  it('ships several items as one parcel with cash on delivery for each', async () => {
+    const res = await post(
+      {
+        ...validOrder,
+        items: [
+          { productId: 'p2', colorId: 'grey', size: 'M', qty: 2 },
+          { productId: 'p5', colorId: 'black', size: 'ONE SIZE', qty: 1 },
+        ],
+      },
+      '1.1.1.10',
+    )
+    expect(res.status).toBe(201)
+    // 2 × 4 500 + 3 900 + 282 доставки.
+    expect(((await res.json()) as { total: number }).total).toBe(13182)
+    const sent = cdekOrders.at(-1) as { packages: { weight: number; length: number; height: number; items: { amount: number; payment: { value: number } }[] }[] }
+    // Худи — упаковка по умолчанию 800 г, 30×25×8; рюкзак — 800 г, 40×30×13: стопкой 40 × 30 × (8·2 + 13).
+    expect(sent.packages[0]).toMatchObject({ weight: 2400, length: 40, height: 29 })
+    expect(sent.packages[0].items.map((i) => [i.amount, i.payment.value])).toEqual([
+      [2, 4500],
+      [1, 3900],
+    ])
   })
 
   it('never loses an order when CDEK fails — it is saved and marked for manual processing', async () => {
@@ -142,9 +162,9 @@ describe('POST /api/orders', () => {
   })
 
   it('rejects sold-out sizes and unknown products', async () => {
-    const soldOut = await post({ ...validOrder, productId: 'p1', colorId: 'blue', size: 'L' }, '1.1.1.5')
+    const soldOut = await post({ ...validOrder, items: [{ productId: 'p1', colorId: 'blue', size: 'L', qty: 1 }] }, '1.1.1.5')
     expect(soldOut.status).toBe(409)
-    const unknown = await post({ ...validOrder, productId: 'zzz' }, '1.1.1.6')
+    const unknown = await post({ ...validOrder, items: [{ productId: 'zzz', colorId: 'grey', size: 'M', qty: 1 }] }, '1.1.1.6')
     expect(unknown.status).toBe(409)
   })
 
@@ -183,14 +203,15 @@ describe('CDEK lookups', () => {
     const points = (await (await get('/api/cdek/points?city=424')).json()) as { points: { code: string; address: string }[] }
     expect(points.points).toEqual([expect.objectContaining({ code: 'KZN3', address: 'ул. Спартаковская, 2' })])
 
-    const quote = (await (await get('/api/cdek/quote?product=p2&qty=1&city=424')).json()) as {
+    const quote = (await (await get('/api/cdek/quote?items=p2:1&city=424')).json()) as {
       quote: { sum: number; periodMin: number }
       totals: { total: number }
     }
     expect(quote.quote).toMatchObject({ sum: 282, periodMin: 8 })
     expect(quote.totals.total).toBe(4782)
 
-    expect((await get('/api/cdek/quote?product=zzz&city=424')).status).toBe(400)
+    expect((await get('/api/cdek/quote?items=zzz:1&city=424')).status).toBe(400)
+    expect((await get('/api/cdek/quote?items=p2:99&city=424')).status).toBe(400)
   })
 })
 
@@ -198,7 +219,7 @@ describe('short links', () => {
   it('redirects /p/<id> to the order form with the size, or to the product card', async () => {
     const order = await get('/p/p2?size=m&order=1')
     expect(order.status).toBe(302)
-    expect(order.headers.get('location')).toBe('/checkout?product=the-only-way-hoodie&size=M')
+    expect(order.headers.get('location')).toBe('/checkout?add=the-only-way-hoodie&size=M')
     expect((await get('/p/jesus-backpack')).headers.get('location')).toBe('/product/jesus-backpack')
     expect((await get('/p/nope?order=1')).headers.get('location')).toBe('/')
   })
@@ -288,11 +309,11 @@ describe('rateLimitKey', () => {
 
 describe('order totals', () => {
   it('adds delivery and splits prepayment from cash on pickup', () => {
-    expect(orderTotals(4500, 1, 282)).toEqual({ goods: 4500, delivery: 282, total: 4782, prepayment: 0, payOnPickup: 4782 })
-    expect(orderTotals(3900, 2, 300, 1000)).toEqual({ goods: 7800, delivery: 300, total: 8100, prepayment: 1000, payOnPickup: 7100 })
+    expect(orderTotals(4500, 282)).toEqual({ goods: 4500, delivery: 282, total: 4782, prepayment: 0, payOnPickup: 4782 })
+    expect(orderTotals(7800, 300, 1000)).toEqual({ goods: 7800, delivery: 300, total: 8100, prepayment: 1000, payOnPickup: 7100 })
     // Предоплата не может превысить сумму заказа и не бывает отрицательной.
-    expect(orderTotals(100, 1, 0, 500).payOnPickup).toBe(0)
-    expect(orderTotals(100, 1, 0, -5).prepayment).toBe(0)
+    expect(orderTotals(100, 0, 500).payOnPickup).toBe(0)
+    expect(orderTotals(100, 0, -5).prepayment).toBe(0)
   })
 })
 
@@ -326,14 +347,15 @@ describe('buildCdekOrder', () => {
       deliveryPoint: 'KZN3',
       sender: { name: 'S', phone: '+70000000000' },
       recipient: { name: 'R', phone: '+79991234567' },
-      item: { name: 'Худи', wareKey: 'SKU', price: 4500, qty: 2 },
-      pkg: { weightG: 800, dimsCm: [30, 25, 8] },
+      items: [{ name: 'Худи', wareKey: 'SKU', price: 4500, qty: 2, weightG: 800 }],
+      pkg: { weightG: 1600, dimsCm: [30, 25, 16] },
       deliveryCost: 300,
-      prepaid: 1000,
+      prepaid: 900,
     })
     expect(body).toMatchObject({ type: 1, tariff_code: 136, delivery_recipient_cost: { value: 300 } })
     expect(body.packages[0]).toMatchObject({ weight: 1600, height: 16 })
-    expect(body.packages[0].items[0]).toMatchObject({ payment: { value: 4000 }, cost: 4500, amount: 2 })
+    // Предоплата 900 из 9 000 за товары — при получении 90% цены каждой вещи.
+    expect(body.packages[0].items[0]).toMatchObject({ payment: { value: 4050 }, cost: 4500, amount: 2, weight: 800 })
   })
 })
 
@@ -345,14 +367,14 @@ describe('formatOrderMessage', () => {
     consentAt: '',
     documentsVersion: '',
     customer: { name: 'Иван', phone: '+79991234567', telegram: '', comment: '<b>hi</b> & bye' },
-    item: { productId: 'p2', name: 'Худи The only way', color: 'Серый меланж', size: 'M', qty: 1, price: 4500, sku: 'X' },
+    items: [{ productId: 'p2', name: 'Худи The only way', color: 'Серый меланж', size: 'M', qty: 1, price: 4500, sku: 'X' }],
     delivery: {
       cityCode: 424,
       pointCode: 'KZN3',
       point: { city: 'Казань', address: 'ул. Спартаковская, 2', name: 'KZN3', workTime: '' },
       quote: { sum: 282, periodMin: 8, periodMax: 12 },
     },
-    totals: orderTotals(4500, 1, 282),
+    totals: orderTotals(4500, 282),
     cdek: { status: 'created', env: 'prod', uuid: 'u', number: '1234567890' },
   }
 

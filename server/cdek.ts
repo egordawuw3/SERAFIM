@@ -83,7 +83,9 @@ export interface CdekOrderInput {
   deliveryPoint: string
   sender: { name: string; phone: string }
   recipient: { name: string; phone: string }
-  item: { name: string; wareKey: string; price: number; qty: number }
+  /** Вещи в посылке: вес — одной штуки, г. */
+  items: { name: string; wareKey: string; price: number; qty: number; weightG: number }[]
+  /** Посылка целиком: суммарный вес и габариты. */
   pkg: CdekPackage
   /** Сколько покупатель платит за доставку при получении, ₽. */
   deliveryCost: number
@@ -107,8 +109,9 @@ interface RawError {
 /** Тело заказа для POST /v2/orders. Чистая функция — проверяется тестами без сети. */
 export function buildCdekOrder(o: CdekOrderInput) {
   const [length, width, height] = o.pkg.dimsCm
-  // Наложенный платёж: за товар покупатель платит при получении всё, кроме предоплаты.
-  const unitCod = Math.max(0, o.item.price - o.prepaid / o.item.qty)
+  // Наложенный платёж: за товары покупатель платит при получении всё, кроме предоплаты (вычитается пропорционально цене).
+  const goods = o.items.reduce((sum, i) => sum + i.price * i.qty, 0)
+  const codShare = goods > 0 ? Math.max(0, 1 - o.prepaid / goods) : 0
   return {
     type: 1, // интернет-магазин
     number: o.number,
@@ -121,20 +124,18 @@ export function buildCdekOrder(o: CdekOrderInput) {
     packages: [
       {
         number: '1',
-        weight: o.pkg.weightG * o.item.qty,
+        weight: o.pkg.weightG,
         length,
         width,
-        height: height * o.item.qty,
-        items: [
-          {
-            name: o.item.name,
-            ware_key: o.item.wareKey,
-            payment: { value: Math.round(unitCod * 100) / 100 },
-            cost: o.item.price,
-            weight: o.pkg.weightG,
-            amount: o.item.qty,
-          },
-        ],
+        height,
+        items: o.items.map((i) => ({
+          name: i.name,
+          ware_key: i.wareKey,
+          payment: { value: Math.round(i.price * codShare * 100) / 100 },
+          cost: i.price,
+          weight: i.weightG,
+          amount: i.qty,
+        })),
       },
     ],
   }
@@ -212,7 +213,7 @@ export class CdekClient {
     return list[0] ? toPoint(list[0]) : null
   }
 
-  async quote(fromCity: number, toCity: number, pkg: CdekPackage, qty = 1): Promise<CdekQuote> {
+  async quote(fromCity: number, toCity: number, pkg: CdekPackage): Promise<CdekQuote> {
     const [length, width, height] = pkg.dimsCm
     const data = await this.request<{ total_sum?: number; delivery_sum?: number; period_min?: number; period_max?: number }>(
       'POST',
@@ -221,7 +222,7 @@ export class CdekClient {
         tariff_code: CDEK_TARIFF,
         from_location: { code: fromCity },
         to_location: { code: toCity },
-        packages: [{ weight: pkg.weightG * qty, length, width, height: height * qty }],
+        packages: [{ weight: pkg.weightG, length, width, height }],
       },
     )
     const sum = data.total_sum ?? data.delivery_sum

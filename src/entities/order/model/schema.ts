@@ -2,7 +2,7 @@ import { z } from 'zod'
 import { MAX_ITEM_QTY } from './limits.ts'
 
 /*
- * Схема заказа — общая для формы на сайте и для сервера. Один товар (размер и цвет), доставка СДЭК до пункта выдачи.
+ * Схема заказа — общая для формы на сайте и для сервера. Товары из корзины, доставка СДЭК до пункта выдачи одной посылкой.
  * Импортирует только zod: файл исполняется и в браузере, и на сервере.
  */
 
@@ -17,11 +17,15 @@ export function normalizeRuPhone(input: string): string | null {
   return null
 }
 
-export const orderRequestSchema = z.object({
+const orderItemSchema = z.object({
   productId: z.string().min(1).max(64),
   colorId: z.string().min(1).max(64),
-  size: z.string().min(1, 'Выберите размер').max(16),
+  size: z.string().min(1).max(16),
   qty: z.number().int().min(1).max(MAX_ITEM_QTY),
+})
+
+export const orderRequestSchema = z.object({
+  items: z.array(orderItemSchema).min(1, 'Корзина пуста').max(30),
   cityCode: z.number({ error: 'Выберите город' }).int().min(0),
   /** Код ПВЗ СДЭК или MANUAL_POINT, если СДЭК не ответил и покупатель описал пункт сам (deliveryNote). */
   pointCode: z
@@ -62,7 +66,7 @@ export const orderRequestSchema = z.object({
 
 /** Поля формы, ошибки по которым показываются под полем. Остальные — общей ошибкой формы. */
 export const ORDER_FORM_FIELDS = [
-  'size',
+  'items',
   'cityCode',
   'pointCode',
   'deliveryNote',
