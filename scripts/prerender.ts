@@ -8,7 +8,7 @@
  *
  * Запускается из `npm run build`. Адрес сайта для canonical/og:url/sitemap — переменная VITE_SITE_URL.
  */
-import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { CACHE_RULES, SECURITY_HEADERS } from '../server/securityHeaders.ts'
@@ -50,6 +50,38 @@ const baseTemplate = template
   .replace(/<meta (?:name="(?:description|twitter:[^"]+)"|property="og:[^"]+")[^>]*>\s*/g, '')
   .replace(/<!--[^>]*og:image[^>]*-->\s*/g, '')
 
+/*
+ * Код страницы — отдельный чанк (React.lazy), браузер узнаёт о нём только после основного скрипта. Пока он не
+ * загружен, страница видна, но нажатия (например, выбор размера) теряются. Поэтому в HTML сразу ставим modulepreload
+ * чанка страницы и всех его зависимостей — они качаются параллельно с основным скриптом.
+ */
+const MANIFEST = join(DIST, '.vite', 'manifest.json')
+const manifest = existsSync(MANIFEST)
+  ? (JSON.parse(readFileSync(MANIFEST, 'utf8')) as Record<string, { file: string; imports?: string[]; isEntry?: boolean }>)
+  : {}
+const ROUTE_CHUNKS: [RegExp, string][] = [
+  [/^\/product\//, 'src/pages/ProductPage.tsx'],
+  [/^\/checkout\/success$/, 'src/pages/OrderSuccessPage.tsx'],
+  [/^\/checkout$/, 'src/pages/CheckoutPage.tsx'],
+  [/^\/about$/, 'src/pages/AboutPage.tsx'],
+  [/^\/info\//, 'src/pages/InfoPage.tsx'],
+]
+function routePreloads(url: string): string {
+  const source = ROUTE_CHUNKS.find(([re]) => re.test(url))?.[1]
+  if (!source || !manifest[source]) return ''
+  // То, что шаблон уже предзагружает (общие чанки основного скрипта), второй раз не ставим.
+  const files = new Set<string>()
+  const already = new Set([...baseTemplate.matchAll(/modulepreload[^>]*href="\/([^"]+)"/g)].map((m) => m[1]))
+  const walk = (key: string) => {
+    const chunk = manifest[key]
+    if (!chunk || chunk.isEntry || files.has(chunk.file)) return
+    files.add(chunk.file)
+    chunk.imports?.forEach(walk)
+  }
+  walk(source)
+  return [...files].filter((f) => !already.has(f)).map((f) => `<link rel="modulepreload" crossorigin href="/${f}">`).join('\n    ')
+}
+
 async function renderPage(url: string, file: string) {
   const html = await entry.render(url)
   const meta = entry.routeMeta(url)
@@ -58,7 +90,7 @@ async function renderPage(url: string, file: string) {
   const page = baseTemplate
     // Предзагрузка картинки первого экрана — сразу после viewport, раньше скриптов, шрифтов и стилей.
     .replace(/(<meta name="viewport"[^>]*>)/, preload ? `$1\n    ${preload}` : '$1')
-    .replace('</head>', `    ${head}\n  </head>`)
+    .replace('</head>', `    ${[routePreloads(url), head].filter(Boolean).join('\n    ')}\n  </head>`)
     .replace('<div id="root"></div>', `<div id="root">${html}</div>`)
     // Страница уже готова в HTML — JS только «оживляет» её. Низкий приоритет: скрипт не отнимает канал у главной картинки.
     .replace(/<script type="module" crossorigin src=/g, '<script type="module" crossorigin fetchpriority="low" src=')
@@ -108,5 +140,8 @@ if (site) {
 } else {
   console.warn('[prerender] VITE_SITE_URL не задан: без canonical, og:url и sitemap.xml. Для продакшена задайте адрес сайта.')
 }
+
+// Манифест нужен только сборке — на сайт его не выкладываем.
+rmSync(join(DIST, '.vite'), { recursive: true, force: true })
 
 console.info(`[prerender] страниц: ${routes.length + 1} (включая 404)${preview ? ' · PREVIEW: закрыто от поисковиков' : ''}`)
