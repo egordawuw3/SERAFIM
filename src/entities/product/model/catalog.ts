@@ -19,7 +19,7 @@ export const categories: Category[] = [
 
 const APPAREL_SIZES: Size[] = ['S', 'M', 'L', 'XL']
 
-const SHIPPING_IN_STOCK = 'В наличии · отправка в течение 5 дней после оплаты'
+const SHIPPING_IN_STOCK = 'В наличии · отправка в течение 5 дней после заказа'
 const MADE_IN = 'Россия'
 /** Все три худи — серый меланж (голубое у The only way — только принт и нашивки). */
 const HOODIE_GREY = { id: 'grey', name: 'Серый меланж', hex: '#C9CAC5' }

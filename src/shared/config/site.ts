@@ -56,8 +56,6 @@ export const site = {
     shipInStockDays: 5,
     shipPreorderDays: 30,
     /** Дата редакции юридических текстов. */
-    documentsDate: '10 октября 2026 г.',
-    /** Платёжный сервис — называется в политике и согласии на обработку ПД. */
-    paymentProvider: 'ЮKassa (ООО НКО «ЮМани»)',
+    documentsDate: '22 октября 2026 г.',
   },
 } as const
