@@ -11,6 +11,8 @@ interface Props {
   loading?: 'lazy' | 'eager'
   /** high — для фото, которое может стать LCP (первые карточки, главное фото товара). */
   priority?: boolean
+  /** low — фото на экране, но не главное (скрытые слайды, миниатюры): не отнимают канал у главного фото. */
+  lowPriority?: boolean
 }
 
 /*
@@ -18,7 +20,7 @@ interface Props {
  * браузер заранее знает пропорции и не сдвигает вёрстку. Если файл не загрузился — аккуратная заглушка
  * вместо значка «битой картинки».
  */
-export function ProductPhoto({ image, alt, sizes, className, loading = 'lazy', priority = false }: Props) {
+export function ProductPhoto({ image, alt, sizes, className, loading = 'lazy', priority = false, lowPriority = false }: Props) {
   const [failedSrc, setFailedSrc] = useState<string | null>(null)
 
   if (failedSrc === image.src) {
@@ -38,7 +40,7 @@ export function ProductPhoto({ image, alt, sizes, className, loading = 'lazy', p
         width={image.width}
         height={image.height}
         loading={priority ? 'eager' : loading}
-        fetchPriority={priority ? 'high' : 'auto'}
+        fetchPriority={priority ? 'high' : lowPriority ? 'low' : 'auto'}
         decoding="async"
         draggable={false}
         onError={() => setFailedSrc(image.src)}

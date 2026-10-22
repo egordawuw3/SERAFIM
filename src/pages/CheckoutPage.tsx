@@ -137,7 +137,8 @@ export function CheckoutPage() {
   const quoteLoading = quoteKey !== null && quoteFor?.key !== quoteKey
   const quote = !quoteLoading && quoteFor ? quoteFor.quote : null
 
-  if (!hydrated || addSlug) return <section className="flex-1" />
+  // Корзина живёт в браузере, в готовом HTML её нет: пока она не подхвачена — место под форму, чтобы футер не прыгал (CLS).
+  if (!hydrated || addSlug) return <section className="min-h-[100svh] flex-1" aria-busy="true" />
 
   if (items.length === 0) {
     return (

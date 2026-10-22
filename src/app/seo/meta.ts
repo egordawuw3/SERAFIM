@@ -1,6 +1,6 @@
 import { getProductBySlug, getProducts } from '@/entities/product/api/productApi'
 import { isColorSoldOut } from '@/entities/product/lib/availability'
-import { OG_IMAGE, ogImageFile } from '@/entities/product/model/photoSizes'
+import { GALLERY_SIZES, OG_IMAGE, ogImageFile } from '@/entities/product/model/photoSizes'
 import type { Product, ProductImage } from '@/entities/product/model/types'
 import { INFO_TITLES } from '@/pages/infoTitles'
 import { site } from '@/shared/config/site'
@@ -20,6 +20,13 @@ const absUrl = (path: string) => `${origin()}${path}`
 const BRAND = site.name
 const DEFAULT_DESCRIPTION =
   'SERAFIM — одежда со смыслом: худи и регбийки кроп-фит с принтами, производство в России. Доставка СДЭК по всей России.'
+/** Баннер главной (BrandBanner): те же srcset/sizes, что у его <picture>. */
+const HERO_PRELOAD = {
+  srcSet: '/images/hero-640.webp 640w, /images/hero-960.webp 960w, /images/hero-1280.webp 1280w, /images/hero-1920.webp 1920w, /images/hero-2560.webp 2560w',
+  sizes: '100vw',
+  type: 'image/webp',
+}
+
 /** Превью ссылок на сайт: баннер с лесом и логотипом (JPEG 1920×1075). */
 const DEFAULT_IMAGE: PreviewImage = { url: '/images/hero.jpg', width: 1920, height: 1075, alt: `${BRAND} — одежда, рождённая природой` }
 
@@ -40,6 +47,11 @@ interface PageMeta {
   type: 'website' | 'product'
   /** Не индексировать: корзина, оформление, 404. */
   noindex?: boolean
+  /**
+   * Картинка первого экрана (LCP): предзагружается из <head> раньше скриптов и шрифтов. srcset, sizes и type —
+   * те же, что у самой картинки, иначе браузер скачает её дважды.
+   */
+  preloadImage?: { srcSet: string; sizes: string; type: string }
   /** Цена для og-тегов product:price:*. */
   price?: number
   jsonLd: object[]
@@ -120,6 +132,12 @@ function productPreview(p: Product): PreviewImage {
   if (!rasterImage(color.images[0])) return DEFAULT_IMAGE
   return { url: ogImageFile(p.slug, color.id), ...OG_IMAGE_SIZE, alt: `${p.name}, ${color.name.toLowerCase()}` }
 }
+/** Главное фото в галерее товара — первый источник <picture> (AVIF) с размерами галереи. */
+function productLcpImage(p: Product): PageMeta['preloadImage'] {
+  const source = p.colors[0].images[0]?.sources?.[0]
+  return source ? { srcSet: source.srcSet, sizes: GALLERY_SIZES, type: source.type } : undefined
+}
+
 const OG_IMAGE_SIZE = { width: OG_IMAGE.width, height: OG_IMAGE.height }
 
 function productDescription(p: Product): string {
@@ -154,6 +172,7 @@ export function routeMeta(pathname: string): PageMeta {
 
   if (path === '/') {
     return base({
+      preloadImage: HERO_PRELOAD,
       title: `${BRAND} — одежда, рождённая природой`,
       path,
       jsonLd: [
@@ -175,6 +194,7 @@ export function routeMeta(pathname: string): PageMeta {
       type: 'product',
       price: product.price,
       image: productPreview(product),
+      preloadImage: productLcpImage(product),
       jsonLd: [
         productJsonLd(product, path),
         breadcrumbs([home, { name: product.name, path }]),
@@ -253,6 +273,13 @@ export function headTags(meta: PageMeta): HeadTag[] {
 const escapeAttr = (v: string) => v.replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 /** JSON-LD внутри <script>: экранируем «<», чтобы строка вида «</script>» не закрыла тег. */
 export const jsonLdText = (data: object[]) => JSON.stringify(data.length === 1 ? data[0] : data).replaceAll('<', '\\u003c')
+
+/** <link rel="preload"> картинки первого экрана — сборка ставит его в начало <head>. */
+export function renderPreload(meta: PageMeta): string {
+  const p = meta.preloadImage
+  if (!p) return ''
+  return `<link rel="preload" as="image" fetchpriority="high" type="${p.type}" imagesrcset="${escapeAttr(p.srcSet)}" imagesizes="${escapeAttr(p.sizes)}" />`
+}
 
 /** HTML для <head> при сборке (prerender). */
 export function renderHead(meta: PageMeta): string {

@@ -26,7 +26,7 @@ const MANIFEST = join(ROOT, 'src', 'entities', 'product', 'model', 'photos.gener
 const { width: W, height: H } = PHOTO_RATIO
 const LARGEST = PHOTO_WIDTHS[PHOTO_WIDTHS.length - 1]
 /** Качество подобрано на глаз для одежды: ткань и принт без артефактов, файл в разы легче. */
-const QUALITY = { avif: 55, webp: 80 } as const
+const QUALITY = { avif: 48, webp: 80 } as const
 /** Какую долю кадра может занять вещь — остальное поля. */
 const FILL = { w: 0.84, h: 0.86 }
 const VIEWS = ['front', 'back', 'model'] as const

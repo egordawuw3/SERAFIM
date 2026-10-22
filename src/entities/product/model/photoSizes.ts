@@ -25,3 +25,6 @@ export const ogImageFile = (slug: string, colorId: string) => `/products/${slug}
 /** Миниатюра (корзина, оформление — кадр 80 px): WebP 240 px вместо запасного 800 px. У SVG-заглушек — как есть. */
 export const thumbnailSrc = (img: { src: string; sources?: unknown[] }) =>
   img.sources ? img.src.replace(/-\d+\.webp$/, '-240.webp') : img.src
+
+/** Ширина главного фото в галерее товара: до 640 px, на телефоне во весь экран. Общая для галереи и предзагрузки в <head>. */
+export const GALLERY_SIZES = '(min-width: 768px) 640px, 100vw'

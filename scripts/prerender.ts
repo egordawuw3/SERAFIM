@@ -16,6 +16,7 @@ import { CACHE_RULES, SECURITY_HEADERS } from '../server/securityHeaders.ts'
 interface ServerEntry {
   render(url: string): Promise<string>
   renderHead(meta: ReturnType<ServerEntry['routeMeta']>): string
+  renderPreload(meta: ReturnType<ServerEntry['routeMeta']>): string
   routeMeta(path: string): { noindex?: boolean; path: string }
   SITE_URL: string
   getProducts(): { slug: string }[]
@@ -51,10 +52,17 @@ const baseTemplate = template
 
 async function renderPage(url: string, file: string) {
   const html = await entry.render(url)
-  const head = entry.renderHead(entry.routeMeta(url))
+  const meta = entry.routeMeta(url)
+  const head = entry.renderHead(meta)
+  const preload = entry.renderPreload(meta)
   const page = baseTemplate
+    // Предзагрузка картинки первого экрана — сразу после viewport, раньше скриптов, шрифтов и стилей.
+    .replace(/(<meta name="viewport"[^>]*>)/, preload ? `$1\n    ${preload}` : '$1')
     .replace('</head>', `    ${head}\n  </head>`)
     .replace('<div id="root"></div>', `<div id="root">${html}</div>`)
+    // Страница уже готова в HTML — JS только «оживляет» её. Низкий приоритет: скрипт не отнимает канал у главной картинки.
+    .replace(/<script type="module" crossorigin src=/g, '<script type="module" crossorigin fetchpriority="low" src=')
+    .replace(/<link rel="modulepreload" crossorigin href=/g, '<link rel="modulepreload" crossorigin fetchpriority="low" href=')
   mkdirSync(dirname(file), { recursive: true })
   writeFileSync(file, page)
 }
