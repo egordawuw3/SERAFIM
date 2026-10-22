@@ -12,7 +12,7 @@ let app: typeof import('./app.ts').app
 /*
  * СДЭК и Telegram подменены: тесты не ходят в сеть. cdekMode переключает поведение «создания заказа» в СДЭК.
  */
-let cdekMode: 'ok' | 'down' = 'ok'
+let cdekMode: 'ok' | 'down' | 'timeout' | 'lookup-down' = 'ok'
 const cdekOrders: unknown[] = []
 const point = (code: string, cityCode: number, city: string, address: string) => ({
   code,
@@ -35,6 +35,7 @@ async function fakeFetch(input: string | URL | Request, init?: RequestInit): Pro
   const path = url.pathname.replace('/v2', '')
   if (path === '/oauth/token') return json({ access_token: 'test-token', expires_in: 3600 })
   if (path === '/location/suggest/cities') return json([{ code: 424, full_name: 'Казань, Татарстан, Россия' }])
+  if (path === '/deliverypoints' && cdekMode === 'lookup-down') throw new TypeError('fetch failed')
   if (path === '/deliverypoints') {
     const code = url.searchParams.get('code')
     if (code) return json(POINTS[code] ? [POINTS[code]] : [])
@@ -43,6 +44,7 @@ async function fakeFetch(input: string | URL | Request, init?: RequestInit): Pro
   if (path === '/calculator/tariff') return json({ total_sum: 281.4, delivery_sum: 235, period_min: 8, period_max: 12 })
   if (path === '/orders' && init?.method === 'POST') {
     if (cdekMode === 'down') return json({ requests: [{ state: 'INVALID', errors: [{ message: 'Сервис недоступен' }] }] }, 500)
+    if (cdekMode === 'timeout') throw new DOMException('The operation was aborted due to timeout', 'TimeoutError')
     cdekOrders.push(JSON.parse(String(init.body)))
     return json({ entity: { uuid: 'uuid-1' }, requests: [{ type: 'CREATE', state: 'ACCEPTED' }] })
   }
@@ -137,6 +139,25 @@ describe('POST /api/orders', () => {
     expect(res.status).toBe(201)
     expect(((await res.json()) as { cdekCreated: boolean }).cdekCreated).toBe(false)
     expect(lastSaved().cdek).toMatchObject({ status: 'failed', error: 'Сервис недоступен' })
+  })
+
+  it('never loses an order on a CDEK timeout or when the pickup point cannot be checked', async () => {
+    cdekMode = 'timeout'
+    const timedOut = await post(validOrder, '1.1.1.11')
+    expect(timedOut.status).toBe(201)
+    expect(((await timedOut.json()) as { cdekCreated: boolean }).cdekCreated).toBe(false)
+    expect(lastSaved().cdek).toMatchObject({ status: 'failed', error: 'СДЭК недоступен' })
+
+    // Другой пункт, чтобы не попасть в кеш: СДЭК не ответил уже на проверке пункта и расчёте доставки.
+    cdekMode = 'lookup-down'
+    const noLookup = await post({ ...validOrder, pointCode: 'KZN9' }, '1.1.1.12')
+    cdekMode = 'ok'
+    expect(noLookup.status).toBe(201)
+    const saved = lastSaved()
+    expect(saved.cdek.status).toBe('failed')
+    expect(saved.delivery.quote).toBeUndefined()
+    // Ошибки СДЭК не уходят покупателю — только флаг и суммы.
+    expect(Object.keys((await noLookup.clone().json()) as object).sort()).toEqual(['cdekCreated', 'number', 'payOnPickup', 'total'])
   })
 
   it('accepts a manually described pickup point when CDEK lookups were unavailable', async () => {
