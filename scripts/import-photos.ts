@@ -17,7 +17,7 @@ import { dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { products } from '../src/entities/product/model/catalog.ts'
-import { PHOTO_FORMATS, PHOTO_RATIO, PHOTO_WIDTHS } from '../src/entities/product/model/photoSizes.ts'
+import { OG_IMAGE, ogImageFile, PHOTO_FORMATS, PHOTO_RATIO, PHOTO_WIDTHS } from '../src/entities/product/model/photoSizes.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IN = join(ROOT, 'photos')
@@ -164,6 +164,21 @@ for (const p of products) {
     const views = VIEWS.filter((v) => existsSync(join(OUT, p.slug, `${c.id}-${v}-${LARGEST}.webp`)))
     if (views.includes('front')) manifest[`${p.slug}/${c.id}`] = views
   }
+}
+
+// Картинки для превью ссылок — из готового фото спереди (1600 px), заново только если фото новее.
+for (const key of Object.keys(manifest)) {
+  const [slug, colorId] = key.split('/')
+  const source = join(OUT, slug, `${colorId}-front-${LARGEST}.webp`)
+  const og = join(ROOT, 'public', ogImageFile(slug, colorId))
+  if (!reprocessAll && existsSync(og) && statSync(og).mtimeMs > statSync(source).mtimeMs) continue
+  const photo = await sharp(source).resize(null, OG_IMAGE.height).toBuffer()
+  const { width = 0 } = await sharp(photo).metadata()
+  await sharp({ create: { width: OG_IMAGE.width, height: OG_IMAGE.height, channels: 3, background: OG_IMAGE.background } })
+    .composite([{ input: photo, left: Math.round((OG_IMAGE.width - width) / 2), top: 0 }])
+    .jpeg({ quality: 72, mozjpeg: true })
+    .toFile(og)
+  console.info(`превью ссылок: ${ogImageFile(slug, colorId)}`)
 }
 
 const manifestSource =

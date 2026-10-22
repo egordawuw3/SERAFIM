@@ -1,5 +1,6 @@
 import { getProductBySlug, getProducts } from '@/entities/product/api/productApi'
 import { isColorSoldOut } from '@/entities/product/lib/availability'
+import { OG_IMAGE, ogImageFile } from '@/entities/product/model/photoSizes'
 import type { Product, ProductImage } from '@/entities/product/model/types'
 import { INFO_TITLES } from '@/pages/infoTitles'
 import { site } from '@/shared/config/site'
@@ -19,15 +20,23 @@ const absUrl = (path: string) => `${origin()}${path}`
 const BRAND = site.name
 const DEFAULT_DESCRIPTION =
   'SERAFIM — одежда со смыслом: худи и регбийки кроп-фит с принтами, производство в России. Доставка СДЭК по всей России.'
-const DEFAULT_IMAGE = '/images/hero.jpg'
+/** Превью ссылок на сайт: баннер с лесом и логотипом (JPEG 1920×1075). */
+const DEFAULT_IMAGE: PreviewImage = { url: '/images/hero.jpg', width: 1920, height: 1075, alt: `${BRAND} — одежда, рождённая природой` }
+
+interface PreviewImage {
+  url: string
+  width: number
+  height: number
+  alt: string
+}
 
 interface PageMeta {
   title: string
   description: string
   /** Путь для canonical без параметров фильтров (?color=…) — чтобы не плодить дубли в поиске. */
   path: string
-  /** Картинка превью для Open Graph (JPEG/WebP/PNG — SVG мессенджеры не показывают). */
-  image: string
+  /** Картинка превью ссылок (Open Graph): JPEG с размерами — так Telegram и VK показывают её крупно. */
+  image: PreviewImage
   type: 'website' | 'product'
   /** Не индексировать: корзина, оформление, 404. */
   noindex?: boolean
@@ -105,12 +114,20 @@ const itemList = (list: Product[]) => ({
 
 // ---------- Страницы ----------
 
+/** Превью ссылки на товар: квадратный JPEG из `npm run photos`; пока у цвета нет настоящего фото — баннер сайта. */
+function productPreview(p: Product): PreviewImage {
+  const color = p.colors[0]
+  if (!rasterImage(color.images[0])) return DEFAULT_IMAGE
+  return { url: ogImageFile(p.slug, color.id), ...OG_IMAGE_SIZE, alt: `${p.name}, ${color.name.toLowerCase()}` }
+}
+const OG_IMAGE_SIZE = { width: OG_IMAGE.width, height: OG_IMAGE.height }
+
 function productDescription(p: Product): string {
   const colors = p.colors.map((c) => c.name.toLowerCase()).join(', ')
   return [
     `${p.name} от ${BRAND}`,
     p.composition && `Состав: ${p.composition}`,
-    p.details.find((d) => d.startsWith('Крой')),
+    p.details.find((d) => d.startsWith('Крой') || d.startsWith('Размер:')),
     p.colors.length > 1 && `Цвета: ${colors}`,
     p.sizes[0] !== 'ONE SIZE' && `Размеры: ${p.sizes.join(', ')}`,
     p.shippingNote,
@@ -157,7 +174,7 @@ export function routeMeta(pathname: string): PageMeta {
       path,
       type: 'product',
       price: product.price,
-      image: rasterImage(product.colors[0].images[0]) ?? DEFAULT_IMAGE,
+      image: productPreview(product),
       jsonLd: [
         productJsonLd(product, path),
         breadcrumbs([home, { name: product.name, path }]),
@@ -205,13 +222,14 @@ interface HeadTag {
 
 export function headTags(meta: PageMeta): HeadTag[] {
   const url = absUrl(meta.path)
-  const image = absUrl(meta.image)
+  const image = absUrl(meta.image.url)
   const name = (n: string, content: string): HeadTag => ({ tag: 'meta', key: 'name', attrs: { name: n, content } })
   const prop = (p: string, content: string): HeadTag => ({ tag: 'meta', key: 'property', attrs: { property: p, content } })
   return [
     name('description', meta.description),
     name('robots', meta.noindex ? 'noindex, follow' : 'index, follow, max-image-preview:large'),
-    ...(SITE_URL ? [{ tag: 'link', key: 'rel', attrs: { rel: 'canonical', href: url } } as HeadTag] : []),
+    // У закрытых от индексации страниц (оформление, 404) canonical не нужен.
+    ...(SITE_URL && !meta.noindex ? [{ tag: 'link', key: 'rel', attrs: { rel: 'canonical', href: url } } as HeadTag] : []),
     prop('og:type', meta.type),
     prop('og:site_name', BRAND),
     prop('og:locale', 'ru_RU'),
@@ -219,11 +237,16 @@ export function headTags(meta: PageMeta): HeadTag[] {
     prop('og:description', meta.description),
     ...(SITE_URL ? [prop('og:url', url)] : []),
     prop('og:image', image),
+    prop('og:image:type', 'image/jpeg'),
+    prop('og:image:width', String(meta.image.width)),
+    prop('og:image:height', String(meta.image.height)),
+    prop('og:image:alt', meta.image.alt),
     ...(meta.price ? [prop('product:price:amount', String(meta.price)), prop('product:price:currency', 'RUB')] : []),
     name('twitter:card', 'summary_large_image'),
     name('twitter:title', meta.title),
     name('twitter:description', meta.description),
     name('twitter:image', image),
+    name('twitter:image:alt', meta.image.alt),
   ]
 }
 

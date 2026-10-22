@@ -14,3 +14,10 @@ export const PHOTO_FORMATS = [
 
 export const photoFile = (slug: string, colorId: string, view: string, width: number, ext: string) =>
   `/products/${slug}/${colorId}-${view}-${width}.${ext}`
+
+/**
+ * Картинка для превью ссылок (Telegram, VK, поисковики): JPEG — его понимают все, квадрат 1200 — крупное превью,
+ * вещь целиком на крафтовом фоне сайта (без обрезки капюшона, как было бы при кадрировании 4:5 в квадрат).
+ */
+export const OG_IMAGE = { width: 1200, height: 1200, background: '#ece4d4' } as const
+export const ogImageFile = (slug: string, colorId: string) => `/products/${slug}/${colorId}-og.jpg`
