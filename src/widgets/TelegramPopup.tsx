@@ -1,6 +1,9 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useId, useRef, useState } from 'react'
 import { useLocation, type Location } from 'react-router'
 import { site } from '@/shared/config/site'
+import { useEscape } from '@/shared/lib/useEscape'
+import { useFocusTrap } from '@/shared/lib/useFocusTrap'
+import { useLockBodyScroll } from '@/shared/lib/useLockBodyScroll'
 import { Close } from '@/shared/ui/icons'
 
 const STORAGE_KEY = 'serafim:tg-popup-closed-at'
@@ -26,9 +29,9 @@ function rememberClosed() {
 }
 
 /*
- * Плашка «Подпишись на Telegram-канал»: через 15 с или когда долистали до середины страницы. Закрывается крестиком,
- * после закрытия (или перехода в канал) не показывается 7 дней. Не появляется там, где мешала бы заказу:
- * оформление, страница и окно товара (у кнопки «Оформить заказ»).
+ * Окно «Подпишись на Telegram-канал»: через 15 с или когда долистали до середины страницы. Закрывается крестиком,
+ * «Не сейчас», Esc или кликом мимо; после закрытия (или перехода в канал) не показывается 7 дней. Не появляется там,
+ * где мешало бы заказу: оформление, страница и окно товара.
  */
 export function TelegramPopup() {
   const location = useLocation()
@@ -63,29 +66,67 @@ export function TelegramPopup() {
     setClosed(true)
   }
 
+  return <TelegramDialog onClose={close} />
+}
+
+/*
+ * Окно по центру экрана: сверху лес из баннера с логотипом, ниже предложение подписаться. Как у карточки товара:
+ * затемнение и клик мимо окна, Esc, фокус удерживается внутри, страница под окном не прокручивается.
+ */
+function TelegramDialog({ onClose }: { onClose: () => void }) {
+  const ref = useRef<HTMLDivElement>(null)
+  const titleId = useId()
+  useEscape(onClose)
+  useLockBodyScroll()
+  useFocusTrap(ref)
+
   return (
-    <aside
-      aria-label="Telegram-канал SERAFIM"
-      className="fixed inset-x-3 bottom-3 z-40 rounded-lg bg-ink p-4 pr-11 font-mono text-[12px] leading-relaxed text-paper shadow-lg motion-safe:animate-fade-in sm:inset-x-auto sm:bottom-6 sm:left-6 sm:max-w-[340px]"
-    >
-      <p>Подпишись на наш Telegram-канал, чтобы быть в курсе новых дропов</p>
-      <a
-        href={site.contacts.telegramChannel}
-        target="_blank"
-        rel="noreferrer"
-        onClick={close}
-        className="mt-3 inline-flex h-9 items-center rounded-lg bg-paper px-4 uppercase tracking-[0.12em] text-ink transition-opacity hover:opacity-85"
-      >
-        Открыть канал
-      </a>
-      <button
-        type="button"
-        onClick={close}
-        aria-label="Закрыть"
-        className="absolute right-2 top-2 flex h-8 w-8 items-center justify-center rounded-lg text-paper/80 transition-colors hover:text-paper"
-      >
-        <Close className="h-4 w-4" />
-      </button>
-    </aside>
+    <div ref={ref} role="dialog" aria-modal="true" aria-labelledby={titleId} className="fixed inset-0 z-[60] flex items-center justify-center p-4">
+      <div className="absolute inset-0 animate-fade-in bg-[#0d1110]/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-[380px] animate-sheet-in overflow-hidden rounded-lg bg-paper shadow-2xl">
+        <div className="grain relative flex h-36 items-center justify-center overflow-hidden bg-forest sm:h-40">
+          <img
+            src="/images/hero-640.webp"
+            srcSet="/images/hero-640.webp 640w, /images/hero-960.webp 960w"
+            sizes="380px"
+            alt=""
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <span
+            aria-hidden
+            className="wordmark relative z-[2] font-logo text-[3.4rem] font-bold uppercase leading-none text-white [text-shadow:0_2px_24px_rgba(0,0,0,0.35)]"
+          >
+            {site.name}
+          </span>
+          <button
+            type="button"
+            onClick={onClose}
+            aria-label="Закрыть"
+            className="absolute right-2 top-2 z-[3] flex h-9 w-9 items-center justify-center rounded-lg text-white/90 transition-colors hover:text-white"
+          >
+            <Close className="h-5 w-5" />
+          </button>
+        </div>
+
+        <div className="px-6 pb-6 pt-5 text-center font-mono">
+          <p className="text-[10px] uppercase tracking-[0.2em] text-muted">Telegram-канал</p>
+          <h2 id={titleId} className="mt-3 font-sans text-[20px] font-light leading-snug text-ink">
+            Подпишись на наш Telegram-канал, чтобы быть в курсе новых дропов
+          </h2>
+          <a
+            href={site.contacts.telegramChannel}
+            target="_blank"
+            rel="noreferrer"
+            onClick={onClose}
+            className="mt-6 flex h-12 w-full items-center justify-center rounded-lg bg-ink text-[12px] uppercase tracking-[0.15em] text-paper transition-opacity hover:opacity-85"
+          >
+            Подписаться
+          </a>
+          <button type="button" onClick={onClose} className="link-hover mt-4 text-[11px] text-ink/70 transition-colors hover:text-ink">
+            Не сейчас
+          </button>
+        </div>
+      </div>
+    </div>
   )
 }
