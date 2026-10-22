@@ -69,7 +69,7 @@ export default {
   fetch(request: Request, env: Env, ctx: unknown): Response | Promise<Response> {
     const { pathname } = new URL(request.url)
     // Всё, что не API, — статика (на случай, если запрос всё же дошёл до Worker).
-    if (!pathname.startsWith('/api/') && pathname !== '/catalog') return env.ASSETS.fetch(request)
+    if (!pathname.startsWith('/api/') && pathname !== '/catalog' && !pathname.startsWith('/p/')) return env.ASSETS.fetch(request)
     // Переменные окружения в Workers постоянны в пределах выкладки — приложение собираем один раз.
     api ??= createApi(platformFor(env))
     return api.fetch(request, env, ctx as never)

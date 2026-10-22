@@ -11,6 +11,7 @@ import {
   MANUAL_POINT,
 } from '../src/entities/order/model/schema.ts'
 import { MAX_ITEM_QTY } from '../src/entities/order/model/limits.ts'
+import { shortLinkTarget } from '../src/entities/product/lib/shortLink.ts'
 import { products } from '../src/entities/product/model/catalog.ts'
 import { site } from '../src/shared/config/site.ts'
 import { CdekError, type CdekClient, type CdekPoint, type CdekQuote } from './cdek.ts'
@@ -118,6 +119,9 @@ export function createApi(platform: ApiPlatform): Hono {
 
   // Отдельной страницы каталога больше нет — он на главной. Постоянный редирект: поисковики переносят адрес, фильтры сохраняются.
   app.get('/catalog', (c) => c.redirect(`/${new URL(c.req.url).search}#catalog`, 301))
+
+  // Короткая ссылка из переписки: /p/p2?size=M&order=1 → сразу форма заказа с размером (без загрузки лишней страницы).
+  app.get('/p/:id', (c) => c.redirect(shortLinkTarget(c.req.param('id'), new URL(c.req.url).searchParams), 302))
 
   // ---------- Доставка СДЭК: подсказки и расчёт для формы заказа ----------
 

@@ -194,6 +194,16 @@ describe('CDEK lookups', () => {
   })
 })
 
+describe('short links', () => {
+  it('redirects /p/<id> to the order form with the size, or to the product card', async () => {
+    const order = await get('/p/p2?size=m&order=1')
+    expect(order.status).toBe(302)
+    expect(order.headers.get('location')).toBe('/checkout?product=the-only-way-hoodie&size=M')
+    expect((await get('/p/jesus-backpack')).headers.get('location')).toBe('/product/jesus-backpack')
+    expect((await get('/p/nope?order=1')).headers.get('location')).toBe('/')
+  })
+})
+
 describe('request guards', () => {
   const body = JSON.stringify(validOrder)
 
