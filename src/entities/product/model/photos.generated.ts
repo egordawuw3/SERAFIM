@@ -3,13 +3,11 @@ export const productPhotos: Record<string, string[]> = {
   "i-will-attract-rugby/blue": [
     "front",
     "back",
-    "model",
-    "full"
+    "model"
   ],
   "the-only-way-hoodie/grey": [
     "front",
-    "model",
-    "full"
+    "model"
   ],
   "if-she-not-from-god-hoodie/grey": [
     "front",
@@ -17,8 +15,7 @@ export const productPhotos: Record<string, string[]> = {
   ],
   "salvation-hoodie/grey": [
     "front",
-    "model",
-    "full"
+    "model"
   ],
   "jesus-backpack/black": [
     "front",
