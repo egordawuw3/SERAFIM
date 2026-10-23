@@ -8,6 +8,16 @@ const PHOTO = '/images/about.webp'
 // Только то, что подтверждено клиентом: недостоверные заявления о товаре нарушают закон о защите прав потребителей.
 const SPECS = ['Хлопок в основе', 'Кроп-фит', 'Сделано в России', 'Малый тираж']
 
+// Текст бренда — дословно от клиента.
+const MANIFESTO = [
+  'Мы живём в мире, который постоянно говорит нам, кем быть, что носить и чего желать.',
+  'Но наша идентичность не начинается с трендов. Она начинается с того, Кому мы принадлежим.',
+  'Мы верим в Иисуса Христа. В благодать, которая спасает. В веру, которая меняет жизнь. В истину, которая не зависит от мнения окружающих.',
+  'Мы смотрим на творение и видим больше, чем красоту. Мы видим напоминание о Творце. В земле, камне, деревьях и свете — отражение мира, который не возник ради моды и не исчезнет вместе с очередным трендом.',
+  'Поэтому мы создаём одежду не только ради внешнего вида. Мы создаём её как выражение убеждений, которые остаются с нами за пределами улиц, фотографий и коллекций.',
+  'Нам не нужно выглядеть совершенными, чтобы говорить о вере. Нам нужно быть честными в том, во что мы верим, и помнить, Кто является основанием нашей жизни.',
+]
+
 export function About() {
   return (
     <section className="w-full px-4 py-16 md:px-12 md:py-24">
@@ -24,12 +34,17 @@ export function About() {
 
         <div className="md:col-span-6 md:col-start-7">
           <p className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted">(О бренде)</p>
-          <h1 className="mt-6 text-[clamp(1.9rem,3.6vw,3.25rem)] font-light leading-[1.08] tracking-[-0.035em]">
-            Мы делаем вещи медленно — <span className="text-ink/70">так же, как растёт лес.</span>
+          <h1 className="mt-6 text-[clamp(1.9rem,3.6vw,3.25rem)] font-light uppercase leading-[1.08] tracking-[-0.035em]">
+            Wear what you believe.
           </h1>
-          <p className="mt-8 max-w-md text-[15px] leading-[1.75] text-ink/85">
-            Хлопок в основе, свободный кроп-фит и принты со смыслом. Шьём в России, каждая модель выходит небольшим
-            тиражом.
+          <div className="mt-8 max-w-md space-y-5 text-[15px] leading-[1.75] text-ink/85">
+            {MANIFESTO.map((p) => (
+              <p key={p}>{p}</p>
+            ))}
+          </div>
+          <p className="mt-8 max-w-md text-[15px] font-medium leading-[1.75]">SERAFIM — Wear what you believe.</p>
+          <p className="mt-2 font-mono text-[11px] uppercase tracking-[0.2em] text-muted">
+            Faith over trends. Creation points to the Creator.
           </p>
 
           <ul className="mt-10 flex flex-wrap gap-2">
