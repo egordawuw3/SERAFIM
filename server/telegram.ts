@@ -43,7 +43,7 @@ export function formatOrderMessage(order: Order): string {
     ? `предоплата ${rub(totals.prepayment)}, при получении ${rub(totals.payOnPickup)}`
     : 'оплата при получении'
   const rows: (string | null)[] = [
-    `<b>Новый заказ ${order.number}</b>`,
+    '<b>Новый заказ</b>',
     ...items.flatMap((i) => [
       '',
       `<b>${escapeHtml(i.name)}</b>`,
