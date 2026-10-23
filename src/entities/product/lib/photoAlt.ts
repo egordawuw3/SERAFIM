@@ -5,6 +5,7 @@ const VIEW_LABEL: Record<ImageView, string> = {
   back: 'вид сзади',
   detail: 'другой ракурс',
   model: 'на модели',
+  full: 'на модели, в полный рост',
 }
 
 /**

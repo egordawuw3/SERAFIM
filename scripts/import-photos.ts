@@ -29,10 +29,10 @@ const LARGEST = PHOTO_WIDTHS[PHOTO_WIDTHS.length - 1]
 const QUALITY = { avif: 48, webp: 80 } as const
 /** Какую долю кадра может занять вещь — остальное поля. */
 const FILL = { w: 0.84, h: 0.86 }
-const VIEWS = ['front', 'detail', 'back', 'model'] as const
+const VIEWS = ['front', 'detail', 'back', 'model', 'full'] as const
 const INPUT_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
-const FILE = /^([a-z0-9-]+)-(front|detail|back|model)$/
+const FILE = /^([a-z0-9-]+)-(front|detail|back|model|full)$/
 
 // sharp объявлен через `export =`: его типы берём из самой функции.
 type Image = ReturnType<typeof sharp>
