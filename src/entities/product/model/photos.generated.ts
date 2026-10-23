@@ -17,6 +17,7 @@ export const productPhotos: Record<string, string[]> = {
   ],
   "jesus-backpack/black": [
     "front",
+    "detail",
     "model"
   ]
 }
