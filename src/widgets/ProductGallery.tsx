@@ -4,9 +4,10 @@ import type { Product, ProductColor } from '@/entities/product/model/types'
 import { ProductPhoto } from '@/entities/product/ui/ProductPhoto'
 import { cn } from '@/shared/lib/cn'
 import { ChevronLeft, ChevronRight } from '@/shared/ui/icons'
+import { GALLERY_SIZES } from '@/entities/product/model/photoSizes'
 
-/** Главное фото — до 640 px в ширину, на телефоне во весь экран. */
-const MAIN_SIZES = '(min-width: 768px) 640px, 100vw'
+/** Главное фото — до 640 px в ширину, на телефоне во весь экран (то же значение предзагружается в <head>). */
+const MAIN_SIZES = GALLERY_SIZES
 const THUMB_SIZES = '56px'
 
 interface Props {
@@ -79,7 +80,7 @@ export function ProductGallery({ product, color }: Props) {
               aria-hidden={i !== index}
               className={cn('absolute inset-0 transition-opacity duration-500', i === index ? 'opacity-100' : 'pointer-events-none opacity-0')}
             >
-              <ProductPhoto image={img} alt={alts[i]} sizes={MAIN_SIZES} priority={i === 0} className="h-full w-full object-contain" />
+              <ProductPhoto image={img} alt={alts[i]} sizes={MAIN_SIZES} priority={i === 0} lowPriority={i !== 0} className="h-full w-full object-contain" />
             </div>
           ) : null,
         )}
@@ -109,7 +110,7 @@ export function ProductGallery({ product, color }: Props) {
                 i === index ? 'border-ink/60' : 'border-transparent opacity-70 hover:opacity-100',
               )}
             >
-              <ProductPhoto image={img} alt="" sizes={THUMB_SIZES} className="h-full w-full object-cover" />
+              <ProductPhoto image={img} alt="" sizes={THUMB_SIZES} lowPriority className="h-full w-full object-cover" />
             </button>
           ))}
         </div>

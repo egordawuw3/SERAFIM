@@ -8,7 +8,7 @@ import { Logo } from '@/shared/ui/Logo'
 import { useBannerInView } from '@/shared/lib/bannerVisibility'
 
 // min-h-6 — зона касания не меньше 24 px (WCAG 2.5.8).
-const linkCls = 'link-hover inline-flex min-h-6 items-center transition-colors duration-300 hover:text-ink'
+const linkCls = 'link-hover tap-target inline-flex min-h-6 items-center transition-colors duration-300 hover:text-ink'
 
 export function Header() {
   const count = useCart((s) => countItems(s.items))
@@ -37,7 +37,8 @@ export function Header() {
         <Logo
           hidden={hideLogo}
           className={cn(
-            'absolute left-1/2 -translate-x-1/2 text-[1.4rem] text-ink transition-[opacity,translate] duration-500 sm:text-[1.6rem] md:text-[2.4rem]',
+            // py — зона нажатия до 44 px по высоте; логотип по центру шапки остаётся там же.
+            'absolute left-1/2 -translate-x-1/2 py-[5px] text-[1.4rem] text-ink transition-[opacity,translate] duration-500 sm:text-[1.6rem] md:text-[2.4rem]',
             hideLogo && 'pointer-events-none -translate-y-2 opacity-0',
           )}
         />

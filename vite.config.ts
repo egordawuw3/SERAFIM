@@ -12,6 +12,8 @@ export default defineConfig({
     proxy: { '/api': 'http://localhost:3000' },
   },
   build: {
+    // Карта «исходник → файлы сборки»: prerender по ней предзагружает код страницы (и удаляет её из dist).
+    manifest: true,
     // Шрифты не вшиваем в CSS как data: — их блокирует CSP (font-src 'self'), а отдельный файл ещё и кэшируется.
     assetsInlineLimit: (file) => (/\.(woff2?|ttf|otf)$/.test(file) ? false : undefined),
   },

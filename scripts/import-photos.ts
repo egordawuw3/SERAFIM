@@ -1,5 +1,5 @@
 /*
- * Импорт фото товаров: photos/<slug>/<цвет>-front.(png|jpg|webp) и -back →
+ * Импорт фото товаров: photos/<slug>/<цвет>-front.(png|jpg|webp), -back и -model (на модели) →
  * public/products/<slug>/<цвет>-front-{480,800,1200,1600}.{avif,webp} — для адаптивной загрузки (srcset).
  *
  * Фото можно класть прямо с телефона: фон вырезается локальной нейросетью (бесплатно, без интернета —
@@ -17,7 +17,7 @@ import { dirname, extname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import sharp from 'sharp'
 import { products } from '../src/entities/product/model/catalog.ts'
-import { PHOTO_FORMATS, PHOTO_RATIO, PHOTO_WIDTHS } from '../src/entities/product/model/photoSizes.ts'
+import { OG_IMAGE, ogImageFile, PHOTO_FORMATS, PHOTO_RATIO, PHOTO_WIDTHS } from '../src/entities/product/model/photoSizes.ts'
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const IN = join(ROOT, 'photos')
@@ -26,13 +26,13 @@ const MANIFEST = join(ROOT, 'src', 'entities', 'product', 'model', 'photos.gener
 const { width: W, height: H } = PHOTO_RATIO
 const LARGEST = PHOTO_WIDTHS[PHOTO_WIDTHS.length - 1]
 /** Качество подобрано на глаз для одежды: ткань и принт без артефактов, файл в разы легче. */
-const QUALITY = { avif: 55, webp: 80 } as const
+const QUALITY = { avif: 48, webp: 80 } as const
 /** Какую долю кадра может занять вещь — остальное поля. */
 const FILL = { w: 0.84, h: 0.86 }
-const VIEWS = ['front', 'back'] as const
+const VIEWS = ['front', 'detail', 'back', 'model'] as const
 const INPUT_EXT = new Set(['.png', '.jpg', '.jpeg', '.webp'])
 const MIME: Record<string, string> = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' }
-const FILE = /^([a-z0-9-]+)-(front|back)$/
+const FILE = /^([a-z0-9-]+)-(front|detail|back|model)$/
 
 // sharp объявлен через `export =`: его типы берём из самой функции.
 type Image = ReturnType<typeof sharp>
@@ -121,7 +121,7 @@ if (existsSync(IN)) {
       const color = match && product.colors.find((c) => c.id === match[1])
       if (!match || !color) {
         problems.push(
-          `photos/${slug}/${file}: ожидается <цвет>-front или <цвет>-back, цвета: ${product.colors.map((c) => c.id).join(', ')}`,
+          `photos/${slug}/${file}: ожидается <цвет>-front, <цвет>-back или <цвет>-model, цвета: ${product.colors.map((c) => c.id).join(', ')}`,
         )
         continue
       }
@@ -164,6 +164,40 @@ for (const p of products) {
     const views = VIEWS.filter((v) => existsSync(join(OUT, p.slug, `${c.id}-${v}-${LARGEST}.webp`)))
     if (views.includes('front')) manifest[`${p.slug}/${c.id}`] = views
   }
+}
+
+// Недостающие ширины (например, новая 240 px) — из готового фото 1600 px, без повторной обработки исходников.
+for (const p of products) {
+  for (const c of p.colors) {
+    for (const view of VIEWS) {
+      const master = join(OUT, p.slug, `${c.id}-${view}-${LARGEST}.webp`)
+      if (!existsSync(master)) continue
+      for (const w of PHOTO_WIDTHS) {
+        for (const { ext } of PHOTO_FORMATS) {
+          const file = join(OUT, p.slug, `${c.id}-${view}-${w}.${ext}`)
+          if (existsSync(file)) continue
+          const img = sharp(master).resize(w, null, { withoutEnlargement: true })
+          await (ext === 'avif' ? img.avif({ quality: QUALITY.avif, effort: 6 }) : img.webp({ quality: QUALITY.webp })).toFile(file)
+          console.info(`дополнено: ${p.slug}/${c.id}-${view}-${w}.${ext}`)
+        }
+      }
+    }
+  }
+}
+
+// Картинки для превью ссылок — из готового фото спереди (1600 px), заново только если фото новее.
+for (const key of Object.keys(manifest)) {
+  const [slug, colorId] = key.split('/')
+  const source = join(OUT, slug, `${colorId}-front-${LARGEST}.webp`)
+  const og = join(ROOT, 'public', ogImageFile(slug, colorId))
+  if (!reprocessAll && existsSync(og) && statSync(og).mtimeMs > statSync(source).mtimeMs) continue
+  const photo = await sharp(source).resize(null, OG_IMAGE.height).toBuffer()
+  const { width = 0 } = await sharp(photo).metadata()
+  await sharp({ create: { width: OG_IMAGE.width, height: OG_IMAGE.height, channels: 3, background: OG_IMAGE.background } })
+    .composite([{ input: photo, left: Math.round((OG_IMAGE.width - width) / 2), top: 0 }])
+    .jpeg({ quality: 72, mozjpeg: true })
+    .toFile(og)
+  console.info(`превью ссылок: ${ogImageFile(slug, colorId)}`)
 }
 
 const manifestSource =

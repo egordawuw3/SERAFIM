@@ -28,7 +28,7 @@ export function SizePicker({ product, color, value, onChange }: Props) {
             <label
               key={s}
               className={cn(
-                'relative flex h-10 min-w-12 items-center justify-center rounded-lg border px-3 text-[13px] transition-colors',
+                'tap-target flex h-10 min-w-12 items-center justify-center rounded-lg border px-3 text-[13px] transition-colors',
                 'has-[:focus-visible]:outline has-[:focus-visible]:outline-1 has-[:focus-visible]:outline-offset-2',
                 !available && 'cursor-not-allowed border-ink/15 text-ink/40 line-through',
                 available && checked && 'border-ink bg-ink text-paper',

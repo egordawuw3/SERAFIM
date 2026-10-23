@@ -1,6 +1,7 @@
 import type { Hono } from 'hono'
 import { createApi } from './api.ts'
-import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS } from './limits.ts'
+import { deliveryFrom, type DeliveryEnv } from './cdek.ts'
+import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS, PERSONAL_DATA_RETENTION_DAYS } from './limits.ts'
 import type { Order } from './order.ts'
 
 /*
@@ -18,7 +19,7 @@ interface D1PreparedStatement {
 interface D1Database {
   prepare(query: string): D1PreparedStatement
 }
-interface Env {
+interface Env extends DeliveryEnv {
   DB: D1Database
   ASSETS: { fetch(request: Request): Promise<Response> }
   /** Секреты: wrangler secret put TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID. */
@@ -30,6 +31,9 @@ interface Env {
 
 function platformFor(env: Env) {
   return {
+    ...deliveryFrom(env),
+    // Ответ покупателю не ждёт номера СДЭК и Telegram: задача доживает после ответа (до 30 с).
+    background: (c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }, task: Promise<unknown>) => c.executionCtx.waitUntil(task),
     siteOrigin: env.SITE_ORIGIN?.replace(/\/+$/, '') ?? '',
     telegram: { token: env.TELEGRAM_BOT_TOKEN ?? '', chatId: env.TELEGRAM_CHAT_ID ?? '' },
     // Cloudflare сам подставляет настоящий IP посетителя — подделать его клиент не может.
@@ -49,7 +53,10 @@ function platformFor(env: Env) {
       return (row?.count ?? 1) <= ORDER_RATE_LIMIT.max
     },
     async saveOrder(order: Order) {
-      await env.DB.prepare('INSERT INTO orders (number, created_at, data) VALUES (?1, ?2, ?3)')
+      // Повторное сохранение того же заказа (пришёл номер СДЭК) обновляет запись.
+      await env.DB.prepare(
+        'INSERT INTO orders (number, created_at, data) VALUES (?1, ?2, ?3) ON CONFLICT(number) DO UPDATE SET data = excluded.data',
+      )
         .bind(order.number, order.createdAt, JSON.stringify(order))
         .run()
     },
@@ -62,15 +69,28 @@ export default {
   fetch(request: Request, env: Env, ctx: unknown): Response | Promise<Response> {
     const { pathname } = new URL(request.url)
     // Всё, что не API, — статика (на случай, если запрос всё же дошёл до Worker).
-    if (!pathname.startsWith('/api/') && pathname !== '/catalog') return env.ASSETS.fetch(request)
+    if (!pathname.startsWith('/api/') && pathname !== '/catalog' && !pathname.startsWith('/p/')) return env.ASSETS.fetch(request)
     // Переменные окружения в Workers постоянны в пределах выкладки — приложение собираем один раз.
     api ??= createApi(platformFor(env))
     return api.fetch(request, env, ctx as never)
   },
 
-  /** Раз в сутки: заявки старше срока из политики конфиденциальности и истёкшие счётчики лимита. */
+  /**
+   * Раз в сутки: персональные данные из заказов старше 30 дней (сбойные, которые не обезличились сразу),
+   * обезличенные заказы старше 3 лет и истёкшие счётчики лимита.
+   */
   async scheduled(_controller: unknown, env: Env): Promise<void> {
-    const cutoff = new Date(Date.now() - ORDER_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    const day = 24 * 60 * 60 * 1000
+    const pdCutoff = new Date(Date.now() - PERSONAL_DATA_RETENTION_DAYS * day).toISOString()
+    await env.DB.prepare(
+      `UPDATE orders SET data = json_remove(json_set(data,
+         '$.customer', json('{"name":"","phone":"","telegram":"","comment":""}'),
+         '$.personalDataRemovedAt', ?2), '$.delivery.note')
+       WHERE created_at < ?1 AND json_extract(data, '$.personalDataRemovedAt') IS NULL`,
+    )
+      .bind(pdCutoff, new Date().toISOString())
+      .run()
+    const cutoff = new Date(Date.now() - ORDER_RETENTION_DAYS * day).toISOString()
     await env.DB.prepare('DELETE FROM orders WHERE created_at < ?1').bind(cutoff).run()
     await env.DB.prepare('DELETE FROM rate_limits WHERE reset_at <= ?1').bind(Date.now()).run()
   },

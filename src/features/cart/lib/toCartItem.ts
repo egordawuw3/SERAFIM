@@ -1,3 +1,4 @@
+import { thumbnailSrc } from '@/entities/product/model/photoSizes'
 import type { Product, ProductColor, Size } from '@/entities/product/model/types'
 import type { CartItem } from '../model/cart'
 
@@ -9,6 +10,6 @@ export const toCartItem = (product: Product, color: ProductColor, size: Size, qt
   colorName: color.name,
   size,
   price: product.price,
-  image: color.images[0].src,
+  image: thumbnailSrc(color.images[0]),
   qty,
 })

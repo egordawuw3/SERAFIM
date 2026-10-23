@@ -1,6 +1,7 @@
 import { findColor, isSizeAvailable } from '@/entities/product/lib/availability'
 import type { Product, Size } from '@/entities/product/model/types'
 import { MAX_QTY, type CartItem } from '../model/cart'
+import { thumbnailSrc } from '@/entities/product/model/photoSizes'
 
 /**
  * Сверяет сохранённую корзину с актуальным каталогом: убирает снятые с продажи позиции
@@ -30,7 +31,7 @@ export function reconcileCart(items: unknown[], lookup: (id: string) => Product 
         colorName: color.name,
         size,
         price: product.price,
-        image: color.images[0].src,
+        image: thumbnailSrc(color.images[0]),
         qty: Math.min(MAX_QTY, Math.floor(item.qty)),
       },
     ]

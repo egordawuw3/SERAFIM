@@ -23,6 +23,6 @@ export async function render(url: string): Promise<string> {
   return new Response(prelude).text()
 }
 
-export { renderHead, routeMeta, SITE_URL } from '@/app/seo/meta'
+export { renderHead, renderPreload, routeMeta, SITE_URL } from '@/app/seo/meta'
 export { getProducts } from '@/entities/product/api/productApi'
 export { INFO_TITLES } from '@/pages/infoTitles'

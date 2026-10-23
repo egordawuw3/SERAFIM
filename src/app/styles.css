@@ -147,6 +147,23 @@
  * Название бренда как на картинке клиента: Times New Roman Bold (Tinos), заглавные,
  * сжатые по горизонтали до ~71% (замерено по его логотипу с крыльями).
  */
+/*
+ * Зона нажатия не меньше 44×44 px (рекомендация для пальца) без изменения вида: невидимый ::before по центру
+ * элемента. ::after не занимаем — им рисуется подчёркивание link-hover.
+ */
+@utility tap-target {
+  position: relative;
+  &::before {
+    content: '';
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    width: max(100%, 44px);
+    height: max(100%, 44px);
+    transform: translate(-50%, -50%);
+  }
+}
+
 @utility wordmark {
   display: inline-block;
   transform: scaleX(0.71);

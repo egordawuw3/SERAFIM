@@ -4,6 +4,7 @@ import { getConnInfo } from '@hono/node-server/conninfo'
 import { serveStatic } from '@hono/node-server/serve-static'
 import { compress } from 'hono/compress'
 import { createApi } from './api.ts'
+import { deliveryFrom } from './cdek.ts'
 import { config } from './config.ts'
 import { createRateLimiter } from './rateLimit.ts'
 import { CACHE_RULES } from './securityHeaders.ts'
@@ -28,6 +29,9 @@ function clientIp(c: Parameters<typeof getConnInfo>[0]): string {
 }
 
 export const app = createApi({
+  ...deliveryFrom(process.env),
+  // Node-процесс живёт постоянно: фоновой задаче достаточно не потерять ошибку.
+  background: (_c, task) => void task.catch((err) => console.error('[orders] фоновая задача', err)),
   siteOrigin: config.siteOrigin,
   telegram: config.telegram,
   clientIp,

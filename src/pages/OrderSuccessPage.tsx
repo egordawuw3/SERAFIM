@@ -9,10 +9,9 @@ export function OrderSuccessPage() {
   if (!order) {
     return (
       <section className="flex flex-1 flex-col items-center justify-center gap-6 px-4 py-32 text-center font-mono">
-        <h1 className="font-sans text-2xl font-light uppercase tracking-widest">Заявка уже отправлена</h1>
+        <h1 className="font-sans text-2xl font-light uppercase tracking-widest">Заказ уже оформлен</h1>
         <p className="max-w-md text-[12px] leading-relaxed text-ink/70">
-          Если вы оформили заказ — мы свяжемся с вами в течение рабочего дня. Номер заявки был на этой странице сразу после
-          отправки.
+          Если вы оформили заказ — трек-номер придёт по смс от СДЭК, а если понадобится что-то уточнить, мы свяжемся с вами.
         </p>
         <Link to="/#catalog" className="link-hover text-[12px] uppercase tracking-[0.15em]">
           Перейти в каталог →
@@ -23,11 +22,15 @@ export function OrderSuccessPage() {
 
   return (
     <section className="flex flex-1 flex-col items-center justify-center px-4 py-32 text-center font-mono">
-      <p className="text-[11px] uppercase tracking-[0.2em] text-muted">Заявка {order.number}</p>
-      <h1 className="mt-6 font-sans text-2xl font-light uppercase tracking-widest md:text-3xl">Заявка отправлена</h1>
+      <p className="text-[11px] uppercase tracking-[0.2em] text-muted">Заказ {order.number}</p>
+      <h1 className="mt-6 font-sans text-2xl font-light uppercase tracking-widest md:text-3xl">
+        {order.cdekCreated ? 'Заказ оформлен' : 'Заказ принят'}
+      </h1>
       <p className="mt-6 max-w-md text-[12px] leading-relaxed text-ink/70">
-        Сумма — {formatPrice(order.total)} без учёта доставки. Мы свяжемся с вами в течение рабочего дня, уточним
-        детали и пришлём ссылку на оплату.
+        {order.cdekCreated
+          ? 'Трек-номер придёт по смс от СДЭК, когда посылку передадут в доставку.'
+          : 'Мы свяжемся с вами, чтобы подтвердить доставку.'}{' '}
+        Оплата при получении в пункте СДЭК: {formatPrice(order.payOnPickup)}.
       </p>
       <Link to="/#catalog" className="link-hover mt-10 text-[12px] uppercase tracking-[0.15em]">
         Вернуться в каталог →

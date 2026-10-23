@@ -6,7 +6,8 @@ import type { Category, ImageView, Measurement, Product, ProductColor, ProductIm
  * Каталог SERAFIM (данные от клиента, 10.10.2026). Когда появится бэкенд, этот файл заменяется
  * запросом к API в ../api/productApi.ts — компоненты менять не придётся.
  *
- * TODO(клиент): размеры, материал и уход рюкзака; вес и размер упаковки всех вещей (для СДЭК); фото сзади.
+ * Вес посылки (для СДЭК) — со слов клиента 22.10.2026: одежда ~600 г (site.shipping.defaultPackage), рюкзак 500 г.
+ * TODO(клиент): материал и уход рюкзака; фото сзади.
  * Фото: настоящие — AVIF/WebP в нескольких ширинах из `npm run photos` (см. design/product-prompts.md),
  * для цветов без фото — SVG-заглушки из `npm run images`.
  */
@@ -19,7 +20,7 @@ export const categories: Category[] = [
 
 const APPAREL_SIZES: Size[] = ['S', 'M', 'L', 'XL']
 
-const SHIPPING_IN_STOCK = 'В наличии · отправка в течение 5 дней после оплаты'
+const SHIPPING_IN_STOCK = 'В наличии · отправка в течение 5 дней после заказа'
 const MADE_IN = 'Россия'
 /** Все три худи — серый меланж (голубое у The only way — только принт и нашивки). */
 const HOODIE_GREY = { id: 'grey', name: 'Серый меланж', hex: '#C9CAC5' }
@@ -162,6 +163,8 @@ export const products: Product[] = [
     sizes: ['ONE SIZE'],
     country: MADE_IN,
     shippingNote: SHIPPING_IN_STOCK,
-    details: ['Принт'],
+    details: ['Размер: 30 × 40 × 13 см', 'Принт'],
+    dimsCm: [40, 30, 13],
+    weightG: 500,
   }),
 ]

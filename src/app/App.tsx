@@ -1,9 +1,10 @@
 import { lazy, Suspense, useEffect } from 'react'
 import { Route, Routes, useLocation, type Location } from 'react-router'
-import { useCart } from '@/features/cart/model/store'
 import { CatalogRedirect } from '@/pages/CatalogRedirect'
+import { useCart } from '@/features/cart/model/store'
 import { HomePage } from '@/pages/HomePage'
 import { NotFoundPage } from '@/pages/NotFoundPage'
+import { ShortLinkRedirect } from '@/pages/ShortLinkRedirect'
 import { registerPrefetch } from '@/shared/lib/prefetch'
 import { loadCartPanel } from '@/widgets/cartPanelLoader'
 import { ErrorBoundary } from './ErrorBoundary'
@@ -13,8 +14,8 @@ import { RouteMeta } from './seo/RouteMeta'
 
 /*
  * Код-сплиттинг: в стартовом бандле — только главная и каталог (первый экран).
- * Карточка товара (модалка, страница, галерея), корзина, оформление, «О бренде», документы — отдельные чанки.
- * Карточку и корзину догружаем заранее при наведении (prefetch), так что клик открывает их без задержки.
+ * Карточка товара (модалка, страница, галерея), корзина, оформление заказа (с картой ПВЗ), «О бренде», документы —
+ * отдельные чанки. Карточку и корзину догружаем заранее при наведении (prefetch), так что клик открывает их без задержки.
  */
 const loadProduct = () => Promise.all([import('@/pages/ProductModal'), import('@/pages/ProductPage')])
 registerPrefetch('product', loadProduct)
@@ -48,6 +49,8 @@ export function App() {
           {/* Отдельной страницы каталога больше нет — он на главной. Старые ссылки (с фильтрами) ведут туда. */}
           <Route path="catalog" element={<CatalogRedirect />} />
           <Route path="product/:slug" element={<ProductPage />} />
+          {/* Короткая ссылка для переписки: /p/p2?size=M&order=1 — сразу форма заказа. */}
+          <Route path="p/:id" element={<ShortLinkRedirect />} />
           <Route path="checkout" element={<CheckoutPage />} />
           <Route path="checkout/success" element={<OrderSuccessPage />} />
           <Route path="about" element={<AboutPage />} />

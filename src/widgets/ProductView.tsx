@@ -6,12 +6,15 @@ import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
 import { ColorSelect } from '@/entities/product/ui/ColorSelect'
 import { SizePicker } from '@/entities/product/ui/SizePicker'
+import { FitGuide } from '@/entities/product/ui/FitGuide'
 import { SizeTable } from '@/entities/product/ui/SizeTable'
 import { toCartItem } from '@/features/cart/lib/toCartItem'
 import { useCart } from '@/features/cart/model/store'
+import { site } from '@/shared/config/site'
 import { formatPrice } from '@/shared/lib/format'
 import { useIsClient } from '@/shared/lib/useIsClient'
 import { PillButton } from '@/shared/ui/PillButton'
+import { pillClassName } from '@/shared/ui/pillClassName'
 import { ProductGallery } from './ProductGallery'
 
 export function ProductView({ product }: { product: Product }) {
@@ -20,8 +23,10 @@ export function ProductView({ product }: { product: Product }) {
   // ?color=… из адреса — только после гидратации: в готовом HTML страница товара собрана с основным цветом.
   const isClient = useIsClient()
   const { color, size, selectColor, selectSize } = useProductSelection(product, (isClient && params.get('color')) || undefined)
-  const [added, setAdded] = useState(false)
   const colorSoldOut = isColorSoldOut(product, color)
+  // «Купить на Авито»: ссылка на товар, иначе на профиль продавца, иначе кнопки нет.
+  const avitoUrl = product.avitoUrl || site.avitoProfileUrl
+  const [added, setAdded] = useState(false)
 
   useEffect(() => {
     if (!added) return
@@ -64,18 +69,26 @@ export function ProductView({ product }: { product: Product }) {
           )}
         </div>
 
-        <PillButton
-          variant="solid"
-          className="mt-5 h-12 w-full max-w-[340px] text-[12px]"
-          disabled={!size}
-          onClick={() => {
-            if (!size) return
-            add(toCartItem(product, color, size))
-            setAdded(true)
-          }}
-        >
-          {colorSoldOut ? 'Нет в наличии' : !size ? 'Выберите размер' : added ? 'Добавлено ✓' : 'В корзину'}
-        </PillButton>
+        {/* Одна кнопка — «В корзину»; заказ оформляется из корзины. Авито — только если есть ссылка. */}
+        <div className="mt-5 flex w-full max-w-[340px] flex-col gap-2.5">
+          <PillButton
+            variant="solid"
+            className="h-12 w-full text-[12px]"
+            disabled={!size}
+            onClick={() => {
+              if (!size) return
+              add(toCartItem(product, color, size))
+              setAdded(true)
+            }}
+          >
+            {colorSoldOut ? 'Нет в наличии' : !size ? 'Выберите размер' : added ? 'Добавлено ✓' : 'В корзину'}
+          </PillButton>
+          {avitoUrl && (
+            <a href={avitoUrl} target="_blank" rel="noreferrer" className={pillClassName('outline', 'h-11 w-full text-[11px]')}>
+              Купить на Авито
+            </a>
+          )}
+        </div>
 
         <div className="mt-8 max-w-[340px] space-y-7">
           <p className="text-ink/70">{product.shippingNote}</p>
@@ -96,7 +109,9 @@ export function ProductView({ product }: { product: Product }) {
             ))}
           </section>
 
-          {product.measurements && <SizeTable measurements={product.measurements} caption="Размерная сетка" />}
+          <FitGuide product={product} />
+
+          {product.measurements && <SizeTable measurements={product.measurements} caption="Замеры изделия" />}
 
           {product.care && (
             <section aria-labelledby="product-care">

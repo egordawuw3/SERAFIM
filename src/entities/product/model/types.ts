@@ -11,7 +11,7 @@ export interface Category {
 }
 
 /** Ракурс фото — из него собирается alt («вид спереди», «вид сзади»…). */
-export type ImageView = 'front' | 'back' | 'detail'
+export type ImageView = 'front' | 'back' | 'detail' | 'model'
 
 export interface ProductImage {
   /** Запасной адрес: SVG-заглушка или WebP 800 px для браузеров без <picture>. */
@@ -65,4 +65,10 @@ export interface Product {
   modelNotes?: string[]
   isPreorder?: boolean
   isNew?: boolean
+  /** Ссылка на этот товар на Авито. Нет — кнопка ведёт на профиль (site.avitoProfileUrl), нет и его — кнопки нет. */
+  avitoUrl?: string
+  /** Вес посылки с упаковкой, г — для расчёта доставки СДЭК. Нет — site.shipping.defaultPackage. */
+  weightG?: number
+  /** Габариты посылки, см: длина × ширина × высота. */
+  dimsCm?: [number, number, number]
 }

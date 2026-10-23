@@ -3,6 +3,7 @@ import { Outlet } from 'react-router'
 import { CartDrawer } from '@/widgets/CartDrawer'
 import { Footer } from '@/widgets/Footer'
 import { Header } from '@/widgets/Header'
+import { TelegramPopup } from '@/widgets/TelegramPopup'
 import { PageFallback } from '@/shared/ui/PageFallback'
 
 export function Layout() {
@@ -22,6 +23,7 @@ export function Layout() {
         </Suspense>
       </main>
       <Footer />
+      <TelegramPopup />
       <CartDrawer />
     </div>
   )

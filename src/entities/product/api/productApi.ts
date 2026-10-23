@@ -12,3 +12,4 @@ export const getProductBySlug = (slug: string): Product | undefined =>
 
 export const getProductById = (id: string): Product | undefined =>
   products.find((p) => p.id === id)
+

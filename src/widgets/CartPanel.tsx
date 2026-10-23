@@ -80,7 +80,7 @@ export function CartPanel() {
                             +
                           </button>
                         </div>
-                        <button type="button" onClick={() => remove(key)} className="text-[11px] text-ink/70 underline-offset-4 hover:text-ink hover:underline">
+                        <button type="button" onClick={() => remove(key)} className="tap-target text-[11px] text-ink/70 underline-offset-4 hover:text-ink hover:underline">
                           Удалить
                         </button>
                       </div>

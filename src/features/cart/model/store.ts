@@ -1,3 +1,4 @@
+import { useSyncExternalStore } from 'react'
 import { create } from 'zustand'
 import { createJSONStorage, persist } from 'zustand/middleware'
 import { getProductById } from '@/entities/product/api/productApi'
@@ -7,7 +8,8 @@ import { addItem, removeItem, setQty, type CartItem } from './cart'
 interface CartState {
   items: CartItem[]
   isOpen: boolean
-  add: (item: CartItem) => void
+  /** open=false — добавить без выезжающей корзины (например, «Оформить заказ» сразу ведёт на оформление). */
+  add: (item: CartItem, open?: boolean) => void
   setQty: (key: string, qty: number) => void
   remove: (key: string) => void
   clear: () => void
@@ -20,7 +22,7 @@ export const useCart = create<CartState>()(
     (set) => ({
       items: [],
       isOpen: false,
-      add: (item) => set((s) => ({ items: addItem(s.items, item), isOpen: true })),
+      add: (item, open = true) => set((s) => ({ items: addItem(s.items, item), isOpen: open || s.isOpen })),
       setQty: (key, qty) => set((s) => ({ items: setQty(s.items, key, qty) })),
       remove: (key) => set((s) => ({ items: removeItem(s.items, key) })),
       clear: () => set({ items: [] }),
@@ -41,3 +43,12 @@ export const useCart = create<CartState>()(
     },
   ),
 )
+
+/** Корзина уже подхвачена из localStorage (до этого она пустая — так собран готовый HTML). */
+export function useCartHydrated(): boolean {
+  return useSyncExternalStore(
+    (onChange) => useCart.persist.onFinishHydration(onChange),
+    () => useCart.persist.hasHydrated(),
+    () => false,
+  )
+}

@@ -1,32 +1,70 @@
-import { CONTACT_METHODS } from '../src/entities/order/model/schema.ts'
-import type { Order } from './order.ts'
+import { cdekTrackingUrl } from './cdek.ts'
+import { sizeLabel, type Order } from './order.ts'
 
 const escapeHtml = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
-/** Telegram отклоняет сообщения длиннее 4096 символов — тогда заявка дошла бы только до файла. */
+/** Telegram отклоняет сообщения длиннее 4096 символов — тогда заказ дошёл бы только до базы. */
 const TELEGRAM_LIMIT = 4096
-const TRUNCATED_NOTE = '\n…\n<i>Сообщение обрезано, полная заявка — в базе заявок</i>'
+const TRUNCATED_NOTE = '\n…\n<i>Сообщение обрезано, полный заказ — в базе заказов</i>'
 
 const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`
 
+/** Строка СДЭК в конце сообщения: номер со ссылкой на отслеживание или понятное предупреждение. */
+function cdekLine(order: Order): string {
+  const { cdek } = order
+  if (cdek.status === 'created') {
+    return cdek.number
+      ? `<b>СДЭК:</b> № ${escapeHtml(cdek.number)} · <a href="${cdekTrackingUrl(cdek.number)}">отследить</a>`
+      : '<b>СДЭК:</b> заказ создан, номер — в личном кабинете СДЭК'
+  }
+  if (cdek.status === 'failed') return `⚠️ <b>В СДЭК не создан — оформите вручную.</b> ${escapeHtml(cdek.error ?? '')}`.trim()
+  return '⚠️ <b>СДЭК не подключён — оформите доставку вручную.</b>'
+}
+
+/** +7 (999) 123-45-67 — Telegram сам делает номер нажимаемым (ссылки tel: в сообщениях бота не поддерживаются). */
+const prettyPhone = (phone: string) => {
+  const d = phone.replace(/\D/g, '')
+  return d.length === 11 && d.startsWith('7') ? `+7 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9, 11)}` : phone
+}
+
+/*
+ * Сообщение продавцу: блоки через пустую строку — товары, суммы, пункт выдачи, покупатель, СДЭК.
+ * Только жирные подзаголовки, без лишнего оформления; всё, что ввёл покупатель, экранируется.
+ */
 export function formatOrderMessage(order: Order): string {
-  const c = order.customer
-  const phoneHref = `tel:${c.phone.replace(/[^\d+]/g, '')}`
-  const rows = [
-    `<b>Новая заявка ${order.number}</b>`,
+  const { customer: c, items, delivery, totals } = order
+  const quote = delivery.quote
+  const point = delivery.note
+    ? `${escapeHtml(delivery.note)} (указал покупатель)`
+    : delivery.point
+      ? `${escapeHtml(delivery.point.city)}, ${escapeHtml(delivery.point.address)} (${escapeHtml(delivery.pointCode)})`
+      : escapeHtml(delivery.pointCode)
+  const pay = totals.prepayment
+    ? `предоплата ${rub(totals.prepayment)}, при получении ${rub(totals.payOnPickup)}`
+    : 'оплата при получении'
+  const rows: (string | null)[] = [
+    `<b>Новый заказ ${order.number}</b>`,
+    ...items.flatMap((i) => [
+      '',
+      `<b>${escapeHtml(i.name)}</b>`,
+      `${escapeHtml(i.color)} · ${escapeHtml(sizeLabel(i.size))} · ${i.qty} шт. — ${rub(i.price * i.qty)}`,
+    ]),
     '',
-    `<b>Имя:</b> ${escapeHtml(c.name)}`,
-    `<b>Телефон:</b> <a href="${phoneHref}">${escapeHtml(c.phone)}</a>`,
-    c.telegram ? `<b>Telegram:</b> @${escapeHtml(c.telegram)}` : null,
-    `<b>Связаться через:</b> ${CONTACT_METHODS[c.contactMethod]}`,
-    c.city ? `<b>Город:</b> ${escapeHtml(c.city)}` : null,
-    c.comment ? `<b>Комментарий:</b> ${escapeHtml(c.comment)}` : null,
+    quote
+      ? `Доставка СДЭК: ${rub(quote.sum)}${quote.periodMax ? `, ${quote.periodMin}–${quote.periodMax} дн.` : ''}`
+      : 'Доставка СДЭК: не рассчитана — уточните с покупателем',
+    `<b>Итого: ${rub(totals.total)}</b> — ${pay}`,
     '',
-    ...order.lines.map(
-      (l) => `• ${escapeHtml(l.name)} — ${escapeHtml(l.color)}, ${escapeHtml(l.size)} × ${l.qty} = ${rub(l.price * l.qty)}`,
-    ),
+    '<b>Пункт выдачи</b>',
+    point,
     '',
-    `<b>Итого: ${rub(order.total)}</b> (без доставки)`,
+    '<b>Покупатель</b>',
+    escapeHtml(c.name),
+    escapeHtml(prettyPhone(c.phone)),
+    c.telegram ? `@${escapeHtml(c.telegram)}` : null,
+    c.comment ? `Комментарий: ${escapeHtml(c.comment)}` : null,
+    '',
+    cdekLine(order),
   ]
   const text = rows.filter((r) => r !== null).join('\n')
   if (text.length <= TELEGRAM_LIMIT) return text

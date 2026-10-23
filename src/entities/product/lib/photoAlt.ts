@@ -3,7 +3,8 @@ import type { ImageView, Product, ProductColor } from '../model/types'
 const VIEW_LABEL: Record<ImageView, string> = {
   front: 'вид спереди',
   back: 'вид сзади',
-  detail: 'деталь',
+  detail: 'другой ракурс',
+  model: 'на модели',
 }
 
 /**

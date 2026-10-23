@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { getProductById } from '@/entities/product/api/productApi'
 import type { CartItem } from '../model/cart'
 import { reconcileCart } from './reconcile'
+import { thumbnailSrc } from '@/entities/product/model/photoSizes'
 
 const base: CartItem = {
   productId: 'p2',
@@ -53,6 +54,7 @@ describe('reconcileCart: untrusted localStorage', () => {
   it('keeps only known fields', () => {
     const [item] = reconcileCart([{ ...base, evil: 'x', image: 'javascript:alert(1)' }], getProductById)
     expect(item).not.toHaveProperty('evil')
-    expect(item.image).toBe(getProductById('p2')!.colors[0].images[0].src)
+    expect(item.image).toBe(thumbnailSrc(getProductById('p2')!.colors[0].images[0]))
+    expect(item.image).toMatch(/-240\.webp$/)
   })
 })

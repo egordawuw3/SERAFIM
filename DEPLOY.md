@@ -155,6 +155,43 @@
 - **Логи и ошибки** (например, если Telegram не принял уведомление): serafim → **Observability → Logs**. Имён и телефонов в логах нет, только номера заявок.
 - **Бесплатные лимиты:** Workers считает только запросы к API (статика бесплатна), D1 — сотни тысяч записей в день. Для магазина это с огромным запасом. Текущие цифры — в разделе **Workers & Pages → Plans**.
 
+## 12. Запуск заказов через СДЭК (ветка feat/cdek-orders)
+
+**Секреты** — Worker **serafim** → Settings → Variables and Secrets, тип **Secret** (обычный текст стирается при каждой выкладке):
+
+| Имя | Значение |
+|---|---|
+| `CDEK_CLIENT_ID` | Account из личного кабинета СДЭК → Интеграция |
+| `CDEK_CLIENT_SECRET` | Secure password оттуда же |
+| `SENDER_PVZ_CODE` | `RZHV3` — ПВЗ, куда Серафим сдаёт посылки |
+| `SENDER_NAME` | ФИО отправителя |
+| `SENDER_PHONE` | `+79201825311` |
+| `TELEGRAM_CHAT_ID` | chat id Серафима (нажать «Старт» у @Serafim_orders_bot, затем getUpdates) |
+| `TELEGRAM_BOT_TOKEN` | новый токен после `/revoke` в @BotFather |
+
+**Включение:**
+1. В [wrangler.jsonc](wrangler.jsonc) → `vars` добавить `"CDEK_ENV": "prod"` (в основной конфигурации, не в `env.preview`).
+2. Слить `feat/cdek-orders` в `main` и запушить — Cloudflare соберёт и выложит сам (5–10 минут, **Deployments**).
+
+**Сразу после выкладки (10 минут, с телефона):**
+- главная, карточка, корзина открываются; размер добавляется в корзину;
+- оформление: город → пункты на карте → доставка считается (если «Стоимость доставки уточним после оформления» — ключи или `SENDER_PVZ_CODE` неверные, смотреть **Observability → Logs**, строки `[cdek]`);
+- **пробный заказ на себя** → пришёл в Telegram с «заказ № …» → появился в кабинете СДЭК → **отменить его в кабинете СДЭК**;
+- ссылка на товар, отправленная в Telegram, разворачивается с квадратной картинкой и ценой;
+- `https://serafim6s.ru/robots.txt` — без `Disallow: /`, `sitemap.xml` открывается.
+
+**Откат за минуту:** Workers & Pages → serafim → **Deployments** → предыдущая версия → **Rollback**. Сайт сразу возвращается к прошлой версии (база заказов не трогается). Потом спокойно чинить в ветке и выкладывать заново. Через git: `git revert -m 1 <merge-коммит> && git push` — тоже выложится сам.
+
+## 13. Яндекс Вебмастер и Google Search Console
+
+Подтверждение — записью TXT в DNS (Cloudflare → serafim6s.ru → **DNS → Records → Add record**), код сайта не трогаем.
+
+**Яндекс:** [webmaster.yandex.ru](https://webmaster.yandex.ru) → «Добавить сайт» → `https://serafim6s.ru` → способ «DNS-запись» → скопировать значение `yandex-verification: …` → в Cloudflare TXT, Name `@`, Content — это значение → «Проверить». Затем **Индексирование → Файлы Sitemap** → `https://serafim6s.ru/sitemap.xml`; **Регион сайта** — Россия.
+
+**Google:** [search.google.com/search-console](https://search.google.com/search-console) → «Добавить ресурс» → **Доменный ресурс** → `serafim6s.ru` → скопировать `google-site-verification=…` → в Cloudflare TXT, Name `@` → «Подтвердить» (до часа). Затем **Файлы Sitemap** → `sitemap.xml`.
+
+Записи TXT для подтверждения не удалять: без них права на сайт в этих сервисах пропадут.
+
 ## Важно: данные покупателей хранятся за границей
 
 D1 — серверы Cloudflare за пределами РФ. По 152-ФЗ первичный сбор и хранение данных граждан РФ должны идти в базах на территории России. Это осознанный временный выбор. Для полного соответствия закону сервер нужно перенести в российское облако (Yandex Cloud, Selectel и т.п.). Код к этому готов: тот же API в Docker ([server/app.ts](server/app.ts), [Dockerfile](Dockerfile)) хранит заявки в файле на своём сервере.

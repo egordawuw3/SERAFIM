@@ -22,8 +22,8 @@
     // Неизвестный адрес → dist/404.html с кодом 404; /about → /about/index.html без редиректа на /about/ (canonical — без слэша).
     "not_found_handling": "404-page",
     "html_handling": "drop-trailing-slash",
-    // Код запускается только для API и редиректа каталога — остальное Cloudflare отдаёт сам, бесплатно и без лимитов.
-    "run_worker_first": ["/api/*", "/catalog"]
+    // Код запускается только для API и редиректов (каталог, короткие ссылки) — остальное Cloudflare отдаёт сам.
+    "run_worker_first": ["/api/*", "/catalog", "/p/*"]
   },
   "d1_databases": [
     {
@@ -39,6 +39,31 @@
   "observability": { "enabled": true },
   "vars": {
     // Запросы к API с других адресов (Origin) отклоняются.
-    "SITE_ORIGIN": "https://serafim6s.ru"
+    "SITE_ORIGIN": "https://serafim6s.ru",
+    // Боевой СДЭК: заказы создаются в личном кабинете продавца (ключи — секреты CDEK_CLIENT_ID / CDEK_CLIENT_SECRET).
+    "CDEK_ENV": "prod"
+  },
+  /*
+   * Превью для проверки нового: отдельный Worker serafim-preview на *.workers.dev — без домена, со своей
+   * тестовой базой и учебной средой СДЭК (заказы не настоящие). Собирать с PREVIEW=1 (закрыто от поисковиков):
+   *   PREVIEW=1 npm run build && npx wrangler d1 migrations apply serafim-preview --remote --env preview && npx wrangler deploy --env preview
+   */
+  "env": {
+    "preview": {
+      "workers_dev": true,
+      "routes": [],
+      "d1_databases": [
+        {
+          "binding": "DB",
+          "database_name": "serafim-preview",
+          "database_id": "ab8cbbce-f963-4869-b768-7581afd51b33",
+          "migrations_dir": "migrations"
+        }
+      ],
+      "vars": {
+        "SITE_ORIGIN": "",
+        "CDEK_ENV": "test"
+      }
+    }
   }
 }

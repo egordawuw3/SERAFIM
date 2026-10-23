@@ -15,7 +15,8 @@ export function useFocusTrap(ref: RefObject<HTMLElement | null>) {
     // Иначе после закрытия по Esc браузер считает ввод клавиатурным, и, например, лента новинок замирает до клика.
     const openedWithKeyboard = previous?.matches(':focus-visible') ?? false
     const focusables = () => [...container.querySelectorAll<HTMLElement>(FOCUSABLE)]
-    ;(focusables()[0] ?? container).focus({ preventScroll: true })
+    // Рамка фокуса — только если окно открыли с клавиатуры: у открытых мышью или по таймеру она выглядит как ошибка.
+    ;(focusables()[0] ?? container).focus({ preventScroll: true, focusVisible: openedWithKeyboard } as FocusOptions)
 
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== 'Tab') return
