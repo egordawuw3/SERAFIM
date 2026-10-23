@@ -1,4 +1,5 @@
 /* Общие для обеих площадок (Node и Cloudflare) правила приёма заявок. */
+import { site } from '../src/shared/config/site.ts'
 
 /** Не больше 5 заявок с одного IP за 10 минут. */
 export const ORDER_RATE_LIMIT = { max: 5, windowMs: 10 * 60_000 } as const
@@ -19,5 +20,11 @@ export function rateLimitKey(ip: string): string {
   return `${full.slice(0, 4).map((g) => g.toLowerCase().replace(/^0+(?=.)/, '')).join(':')}::/64`
 }
 
-/** Сколько дней хранить заявки: в политике конфиденциальности — не дольше 3 лет. */
+/** Сколько дней хранить обезличенные заказы (номер, товары, суммы, время согласия). */
 export const ORDER_RETENTION_DAYS = 3 * 365
+
+/**
+ * Персональные данные покупателя на сервере сайта: стираются, как только заказ передан в СДЭК и продавцу в Telegram.
+ * Если передача не удалась, данные нужны продавцу для ручного оформления, но не дольше этого срока (политика конфиденциальности).
+ */
+export const PERSONAL_DATA_RETENTION_DAYS = site.terms.personalDataDays

@@ -19,7 +19,7 @@ const server = serve({ fetch: app.fetch, port: config.port }, ({ port }) => {
 /* Заявки старше срока из политики конфиденциальности удаляем при старте и раз в сутки. */
 const prune = () =>
   pruneOrders()
-    .then((n) => n && console.info(`[orders] удалено устаревших заявок: ${n}`))
+    .then(({ removed, anonymized }) => (removed || anonymized) && console.info(`[orders] удалено: ${removed}, обезличено: ${anonymized}`))
     .catch((err) => console.error('[orders] не удалось почистить устаревшие заявки', err))
 void prune()
 setInterval(prune, 24 * 60 * 60 * 1000).unref()

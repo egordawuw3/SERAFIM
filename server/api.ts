@@ -17,6 +17,8 @@ import { site } from '../src/shared/config/site.ts'
 import { CdekError, type CdekClient, type CdekPoint, type CdekQuote } from './cdek.ts'
 import { rateLimitKey } from './limits.ts'
 import {
+  anonymize,
+  canAnonymizeNow,
   createOrder,
   OrderValidationError,
   packageFor,
@@ -219,15 +221,22 @@ export function createApi(platform: ApiPlatform): Hono {
       }
       await platform.saveOrder(order).catch((err) => console.error(`[orders] ${order.number}: не удалось обновить`, err))
     }
+    let sent = false
     if (!telegramConfigured) {
       // Только номер: логи площадки (панель Cloudflare, журнал Docker) — не место для имён и телефонов.
       console.info(`[orders] ${order.number} сохранён (Telegram не настроен — уведомление не отправлено)`)
-      return
+    } else {
+      try {
+        await sendToTelegram(formatOrderMessage(order), platform.telegram)
+        sent = true
+      } catch (err) {
+        console.error(`[orders] ${order.number}: не удалось отправить в Telegram`, err)
+      }
     }
-    try {
-      await sendToTelegram(formatOrderMessage(order), platform.telegram)
-    } catch (err) {
-      console.error(`[orders] ${order.number}: не удалось отправить в Telegram`, err)
+    // Заказ у СДЭК и у продавца — персональные данные на сервере сайта больше не нужны. Сбойные заказы остаются
+    // с данными для ручного оформления и обезличиваются ежедневной чисткой через PERSONAL_DATA_RETENTION_DAYS.
+    if (canAnonymizeNow(order, sent)) {
+      await platform.saveOrder(anonymize(order)).catch((err) => console.error(`[orders] ${order.number}: не удалось обезличить`, err))
     }
   }
 

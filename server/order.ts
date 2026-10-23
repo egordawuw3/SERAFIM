@@ -49,7 +49,26 @@ export interface Order {
   delivery: OrderDelivery
   totals: OrderTotals
   cdek: OrderCdek
+  /** Когда из заказа стёрты персональные данные (имя, телефон, Telegram, комментарий, описанный вручную пункт). */
+  personalDataRemovedAt?: string
 }
+
+/**
+ * Обезличенная копия заказа: без имени, телефона, ника, комментария и описанного покупателем пункта.
+ * Остаются номер, товары, суммы, код ПВЗ, данные СДЭК и время согласия — по ним видно, что заказ был и согласие дано.
+ */
+export function anonymize(order: Order, now = new Date()): Order {
+  const { note: _note, ...delivery } = order.delivery
+  return {
+    ...order,
+    customer: { name: '', phone: '', telegram: '', comment: '' },
+    delivery,
+    personalDataRemovedAt: now.toISOString(),
+  }
+}
+
+/** Данные можно стереть сразу: заказ принят СДЭК и продавец получил его в Telegram. Иначе они нужны для ручного оформления. */
+export const canAnonymizeNow = (order: Order, sentToTelegram: boolean) => sentToTelegram && order.cdek.status === 'created'
 
 export class OrderValidationError extends Error {}
 

@@ -1,7 +1,7 @@
 import type { Hono } from 'hono'
 import { createApi } from './api.ts'
 import { deliveryFrom, type DeliveryEnv } from './cdek.ts'
-import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS } from './limits.ts'
+import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS, PERSONAL_DATA_RETENTION_DAYS } from './limits.ts'
 import type { Order } from './order.ts'
 
 /*
@@ -75,9 +75,22 @@ export default {
     return api.fetch(request, env, ctx as never)
   },
 
-  /** Раз в сутки: заявки старше срока из политики конфиденциальности и истёкшие счётчики лимита. */
+  /**
+   * Раз в сутки: персональные данные из заказов старше 30 дней (сбойные, которые не обезличились сразу),
+   * обезличенные заказы старше 3 лет и истёкшие счётчики лимита.
+   */
   async scheduled(_controller: unknown, env: Env): Promise<void> {
-    const cutoff = new Date(Date.now() - ORDER_RETENTION_DAYS * 24 * 60 * 60 * 1000).toISOString()
+    const day = 24 * 60 * 60 * 1000
+    const pdCutoff = new Date(Date.now() - PERSONAL_DATA_RETENTION_DAYS * day).toISOString()
+    await env.DB.prepare(
+      `UPDATE orders SET data = json_remove(json_set(data,
+         '$.customer', json('{"name":"","phone":"","telegram":"","comment":""}'),
+         '$.personalDataRemovedAt', ?2), '$.delivery.note')
+       WHERE created_at < ?1 AND json_extract(data, '$.personalDataRemovedAt') IS NULL`,
+    )
+      .bind(pdCutoff, new Date().toISOString())
+      .run()
+    const cutoff = new Date(Date.now() - ORDER_RETENTION_DAYS * day).toISOString()
     await env.DB.prepare('DELETE FROM orders WHERE created_at < ?1').bind(cutoff).run()
     await env.DB.prepare('DELETE FROM rate_limits WHERE reset_at <= ?1').bind(Date.now()).run()
   },

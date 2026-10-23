@@ -445,3 +445,64 @@ describe('formatOrderMessage', () => {
     expect(text.endsWith('</i>')).toBe(true)
   })
 })
+
+describe('personal data minimisation', () => {
+  const run = async (telegramOk: boolean) => {
+    const { createApi } = await import('./api.ts')
+    const { deliveryFrom } = await import('./cdek.ts')
+    const saved: Order[] = []
+    const tasks: Promise<unknown>[] = []
+    // Telegram «падает» подменой fetch только для api.telegram.org.
+    const realFetch = globalThis.fetch
+    vi.stubGlobal('fetch', vi.fn((input: string | URL | Request, init?: RequestInit) =>
+      String(input).includes('api.telegram.org') && !telegramOk ? Promise.resolve(new Response('fail', { status: 500 })) : realFetch(input, init),
+    ))
+    const api = createApi({
+      ...deliveryFrom({ CDEK_ENV: 'test' }),
+      siteOrigin: '',
+      telegram: { token: 'test', chatId: '1' },
+      clientIp: () => `7.7.7.${telegramOk ? 1 : 2}`,
+      allowOrder: () => true,
+      saveOrder: async (o) => void saved.push(structuredClone(o)),
+      background: (_c, task) => void tasks.push(task),
+    })
+    const res = await api.request('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(validOrder) })
+    await Promise.all(tasks)
+    vi.stubGlobal('fetch', realFetch)
+    return { res, last: saved.at(-1)! }
+  }
+
+  it('erases name, phone and Telegram once the order is with CDEK and the seller', async () => {
+    const { res, last } = await run(true)
+    expect(res.status).toBe(201)
+    expect(last.customer).toEqual({ name: '', phone: '', telegram: '', comment: '' })
+    expect(last.personalDataRemovedAt).toBeTruthy()
+    // Обезличенное остаётся: номер, товары, суммы, ПВЗ, СДЭК, время согласия.
+    expect(last).toMatchObject({ items: [expect.objectContaining({ name: 'Худи The only way' })], cdek: { status: 'created' } })
+    expect(last.consentAt).toBeTruthy()
+    expect(JSON.stringify(last)).not.toMatch(/Иван|9991234567|ivan_petrov/)
+  }, 20_000)
+
+  it('keeps contact details when the seller was not notified (manual processing)', async () => {
+    const { last } = await run(false)
+    expect(last.customer.phone).toBe('+79991234567')
+    expect(last.personalDataRemovedAt).toBeUndefined()
+  }, 20_000)
+
+  it('Node storage replaces the record and anonymizes failed orders after 30 days', async () => {
+    const { saveOrder, pruneOrders } = await import('./storage.ts')
+    const { anonymize } = await import('./order.ts')
+    const order = { ...lastSaved(), number: 'SRF-PD-1', createdAt: new Date().toISOString(), personalDataRemovedAt: undefined }
+    order.customer = { name: 'Пётр', phone: '+79990001122', telegram: 'petr_pd', comment: '' }
+    await saveOrder(order)
+    await saveOrder(anonymize(order))
+    const lines = readFileSync(ordersFile, 'utf8').split('\n').filter((l) => l.includes('SRF-PD-1'))
+    expect(lines).toHaveLength(1)
+    expect(lines[0]).not.toContain('+79990001122')
+
+    await saveOrder({ ...order, number: 'SRF-PD-2' })
+    const { anonymized } = await pruneOrders(3 * 365, Date.now() + 31 * 24 * 60 * 60 * 1000)
+    expect(anonymized).toBeGreaterThan(0)
+    expect(readFileSync(ordersFile, 'utf8')).not.toContain('+79990001122')
+  })
+})
