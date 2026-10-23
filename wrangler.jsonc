@@ -39,7 +39,9 @@
   "observability": { "enabled": true },
   "vars": {
     // Запросы к API с других адресов (Origin) отклоняются.
-    "SITE_ORIGIN": "https://serafim6s.ru"
+    "SITE_ORIGIN": "https://serafim6s.ru",
+    // Боевой СДЭК: заказы создаются в личном кабинете продавца (ключи — секреты CDEK_CLIENT_ID / CDEK_CLIENT_SECRET).
+    "CDEK_ENV": "prod"
   },
   /*
    * Превью для проверки нового: отдельный Worker serafim-preview на *.workers.dev — без домена, со своей
