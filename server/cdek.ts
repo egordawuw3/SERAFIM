@@ -130,7 +130,8 @@ export function buildCdekOrder(o: CdekOrderInput) {
         height,
         items: o.items.map((i) => ({
           name: i.name,
-          ware_key: i.wareKey,
+          // Лимит API v2 — 20 символов (иначе заказ отклоняется).
+          ware_key: i.wareKey.slice(0, 20),
           payment: { value: Math.round(i.price * codShare * 100) / 100 },
           cost: i.price,
           weight: i.weightG,

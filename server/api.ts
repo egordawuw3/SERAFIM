@@ -22,6 +22,7 @@ import {
   packageFor,
   resolveItems,
   sizeLabel,
+  cdekWareKey,
   unitPackage,
   type Order,
   type OrderCdek,
@@ -304,9 +305,9 @@ export function createApi(platform: ApiPlatform): Hono {
           deliveryPoint: input.pointCode,
           sender: { name: sender.name, phone: sender.phone },
           recipient: { name: input.name, phone: input.phone },
-          items: resolved.map(({ product, item }) => ({
+          items: resolved.map(({ product, item }, i) => ({
             name: `${item.name}, ${item.color.toLowerCase()}, ${sizeLabel(item.size)}`,
-            wareKey: item.sku,
+            wareKey: cdekWareKey({ ...item, colorId: input.items[i].colorId }),
             price: item.price,
             qty: item.qty,
             weightG: unitPackage(product).weightG,

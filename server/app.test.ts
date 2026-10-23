@@ -102,7 +102,8 @@ describe('POST /api/orders', () => {
     expect(saved.cdek).toMatchObject({ status: 'created', env: 'test', uuid: 'uuid-1' })
     expect(saved.consentAt).toBe(saved.createdAt)
 
-    const sent = cdekOrders.at(-1) as { shipment_point: string; delivery_point: string; delivery_recipient_cost: { value: number }; packages: { items: { payment: { value: number } }[] }[] }
+    const sent = cdekOrders.at(-1) as { shipment_point: string; delivery_point: string; delivery_recipient_cost: { value: number }; packages: { items: { ware_key: string; payment: { value: number } }[] }[] }
+    expect(sent.packages[0].items[0].ware_key).toBe('p2-grey-M')
     expect(sent.shipment_point).toBe('MSK65')
     expect(sent.delivery_point).toBe('KZN3')
     expect(sent.delivery_recipient_cost.value).toBe(282)
@@ -356,6 +357,18 @@ describe('order validation', () => {
     const noCity = orderRequestSchema.safeParse({ ...validOrder, cityCode: 0 })
     expect(noCity.success ? [] : noCity.error.issues.map((i) => i.path[0])).toEqual(['cityCode'])
     expect(orderRequestSchema.safeParse(validOrder).success).toBe(true)
+  })
+})
+
+describe('cdekWareKey', () => {
+  it('fits the 20-character CDEK limit for every product, colour and size', async () => {
+    const { cdekWareKey } = await import('./order.ts')
+    const { products } = await import('../src/entities/product/model/catalog.ts')
+    const keys = products.flatMap((p) => p.colors.flatMap((c) => p.sizes.map((size) => cdekWareKey({ productId: p.id, colorId: c.id, size }))))
+    expect(keys.every((k) => k.length <= 20)).toBe(true)
+    expect(new Set(keys).size).toBe(keys.length)
+    expect(cdekWareKey({ productId: 'p4', colorId: 'grey', size: 'XL' })).toBe('p4-grey-XL')
+    expect(cdekWareKey({ productId: 'p5', colorId: 'black', size: 'ONE SIZE' })).toBe('p5-black-ONESIZE')
   })
 })
 

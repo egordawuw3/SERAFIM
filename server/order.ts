@@ -53,6 +53,13 @@ export interface Order {
 
 export class OrderValidationError extends Error {}
 
+/**
+ * Артикул для СДЭК (ware_key): по документации API v2 — не длиннее 20 символов, а наш полный артикул
+ * (SRF/HD/SALVATION/GREY/XL) длиннее. Короткий и однозначный: товар-цвет-размер, например p4-grey-XL.
+ */
+export const cdekWareKey = (item: Pick<OrderItem, 'productId' | 'size'> & { colorId: string }) =>
+  `${item.productId}-${item.colorId}-${item.size.replace(/\s+/g, '')}`.slice(0, 20)
+
 /** Размер по-человечески — как на сайте: «единый размер» вместо ONE SIZE (Telegram, название позиции в СДЭК). */
 export const sizeLabel = (size: string) => (size === 'ONE SIZE' ? 'единый размер' : size)
 
