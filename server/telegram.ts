@@ -9,43 +9,60 @@ const TRUNCATED_NOTE = '\n…\n<i>Сообщение обрезано, полн�
 
 const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`
 
+/** Строка СДЭК в конце сообщения: номер со ссылкой на отслеживание или понятное предупреждение. */
 function cdekLine(order: Order): string {
   const { cdek } = order
-  const test = cdek.env === 'test' ? ' (тестовая среда)' : ''
   if (cdek.status === 'created') {
-    if (cdek.number) return `<b>СДЭК${test}:</b> заказ № ${escapeHtml(cdek.number)} — ${cdekTrackingUrl(cdek.number)}`
-    return `<b>СДЭК${test}:</b> заказ принят, номер появится в личном кабинете СДЭК (id ${escapeHtml(cdek.uuid ?? '—')})`
+    return cdek.number
+      ? `<b>СДЭК:</b> № ${escapeHtml(cdek.number)} · <a href="${cdekTrackingUrl(cdek.number)}">отследить</a>`
+      : '<b>СДЭК:</b> заказ создан, номер — в личном кабинете СДЭК'
   }
-  if (cdek.status === 'failed') return `⚠️ <b>В СДЭК не создан, оформите вручную:</b> ${escapeHtml(cdek.error ?? 'неизвестная ошибка')}`
-  return '⚠️ <b>СДЭК не подключён — оформите доставку вручную</b>'
+  if (cdek.status === 'failed') return `⚠️ <b>В СДЭК не создан — оформите вручную.</b> ${escapeHtml(cdek.error ?? '')}`.trim()
+  return '⚠️ <b>СДЭК не подключён — оформите доставку вручную.</b>'
 }
 
+/** +7 (999) 123-45-67 — Telegram сам делает номер нажимаемым (ссылки tel: в сообщениях бота не поддерживаются). */
+const prettyPhone = (phone: string) => {
+  const d = phone.replace(/\D/g, '')
+  return d.length === 11 && d.startsWith('7') ? `+7 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7, 9)}-${d.slice(9, 11)}` : phone
+}
+
+/*
+ * Сообщение продавцу: блоки через пустую строку — товары, суммы, пункт выдачи, покупатель, СДЭК.
+ * Только жирные подзаголовки, без лишнего оформления; всё, что ввёл покупатель, экранируется.
+ */
 export function formatOrderMessage(order: Order): string {
   const { customer: c, items, delivery, totals } = order
-  const phoneHref = `tel:${c.phone.replace(/[^\d+]/g, '')}`
-  const point = delivery.note
-    ? `указан покупателем: ${escapeHtml(delivery.note)}`
-    : delivery.point
-      ? `${escapeHtml(delivery.pointCode)}, ${escapeHtml(delivery.point.city)}, ${escapeHtml(delivery.point.address)}`
-      : `${escapeHtml(delivery.pointCode)} (город СДЭК ${delivery.cityCode})`
   const quote = delivery.quote
-  const rows = [
+  const point = delivery.note
+    ? `${escapeHtml(delivery.note)} (указал покупатель)`
+    : delivery.point
+      ? `${escapeHtml(delivery.point.city)}, ${escapeHtml(delivery.point.address)} (${escapeHtml(delivery.pointCode)})`
+      : escapeHtml(delivery.pointCode)
+  const pay = totals.prepayment
+    ? `предоплата ${rub(totals.prepayment)}, при получении ${rub(totals.payOnPickup)}`
+    : 'оплата при получении'
+  const rows: (string | null)[] = [
     `<b>Новый заказ ${order.number}</b>`,
+    ...items.flatMap((i) => [
+      '',
+      `<b>${escapeHtml(i.name)}</b>`,
+      `${escapeHtml(i.color)} · ${escapeHtml(sizeLabel(i.size))} · ${i.qty} шт. — ${rub(i.price * i.qty)}`,
+    ]),
     '',
-    ...items.map((i) => `• ${escapeHtml(i.name)} — ${escapeHtml(i.color)}, ${escapeHtml(sizeLabel(i.size))} × ${i.qty} = ${rub(i.price * i.qty)}`),
     quote
-      ? `<b>Доставка СДЭК:</b> ${rub(quote.sum)}${quote.periodMax ? ` (${quote.periodMin}–${quote.periodMax} дн.)` : ''}`
-      : '<b>Доставка СДЭК:</b> не рассчитана — уточните с покупателем',
-    `<b>Итого: ${rub(totals.total)}</b>`,
-    totals.prepayment
-      ? `Предоплата: ${rub(totals.prepayment)}, при получении: ${rub(totals.payOnPickup)}`
-      : `Оплата при получении в ПВЗ: ${rub(totals.payOnPickup)}`,
+      ? `Доставка СДЭК: ${rub(quote.sum)}${quote.periodMax ? `, ${quote.periodMin}–${quote.periodMax} дн.` : ''}`
+      : 'Доставка СДЭК: не рассчитана — уточните с покупателем',
+    `<b>Итого: ${rub(totals.total)}</b> — ${pay}`,
     '',
-    `<b>ПВЗ:</b> ${point}`,
-    `<b>Имя:</b> ${escapeHtml(c.name)}`,
-    `<b>Телефон:</b> <a href="${phoneHref}">${escapeHtml(c.phone)}</a>`,
-    c.telegram ? `<b>Telegram:</b> @${escapeHtml(c.telegram)}` : null,
-    c.comment ? `<b>Комментарий:</b> ${escapeHtml(c.comment)}` : null,
+    '<b>Пункт выдачи</b>',
+    point,
+    '',
+    '<b>Покупатель</b>',
+    escapeHtml(c.name),
+    escapeHtml(prettyPhone(c.phone)),
+    c.telegram ? `@${escapeHtml(c.telegram)}` : null,
+    c.comment ? `Комментарий: ${escapeHtml(c.comment)}` : null,
     '',
     cdekLine(order),
   ]

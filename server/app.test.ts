@@ -412,30 +412,33 @@ describe('formatOrderMessage', () => {
     cdek: { status: 'created', env: 'prod', uuid: 'u', number: '1234567890' },
   }
 
-  it('lists item, delivery, total, pickup point, buyer and CDEK number', async () => {
+  it('lists items, delivery, total, pickup point, buyer and CDEK number in separate blocks', async () => {
     const { formatOrderMessage } = await import('./telegram.ts')
-    const text = formatOrderMessage(base)
-    expect(text).toMatch(/Худи The only way — Серый меланж, M × 1 = 4\s500 ₽/)
-    expect(text).toContain('Доставка СДЭК:</b> 282 ₽ (8–12 дн.)')
-    expect(text).toMatch(/Итого: 4\s782 ₽/)
-    expect(text).toContain('KZN3, Казань, ул. Спартаковская, 2')
-    expect(text).toContain('+79991234567')
-    expect(text).toContain('заказ № 1234567890')
+    const text = formatOrderMessage({ ...base, customer: { ...base.customer, telegram: 'ivan_petrov' } })
+    expect(text).toMatch(/<b>Худи The only way<\/b>\nСерый меланж · M · 1 шт\. — 4\s500 ₽/)
+    expect(text).toContain('Доставка СДЭК: 282 ₽, 8–12 дн.')
+    expect(text).toMatch(/<b>Итого: 4\s782 ₽<\/b> — оплата при получении/)
+    expect(text).toContain('<b>Пункт выдачи</b>\nКазань, ул. Спартаковская, 2 (KZN3)')
+    expect(text).toContain('<b>Покупатель</b>\nИван\n+7 (999) 123-45-67\n@ivan_petrov')
+    expect(text).toContain('№ 1234567890 · <a href="https://www.cdek.ru/ru/tracking?order_id=1234567890">отследить</a>')
     expect(text).toContain('&lt;b&gt;hi&lt;/b&gt; &amp; bye')
-    expect(text).not.toContain('Telegram:')
+    // Без технических строк: ни «тестовой среды», ни id заказа, ни ссылок tel:.
+    expect(text).not.toMatch(/тестовая среда|id |tel:/)
+    // Блоки разделены пустой строкой.
+    expect(text.split('\n\n').length).toBeGreaterThanOrEqual(5)
   })
 
   it('writes the one-size backpack as «единый размер», like the site', async () => {
     const { formatOrderMessage } = await import('./telegram.ts')
     const text = formatOrderMessage({ ...base, items: [{ ...base.items[0], name: 'Рюкзак Jesus', color: 'Чёрный', size: 'ONE SIZE' }] })
-    expect(text).toContain('Рюкзак Jesus — Чёрный, единый размер × 1')
+    expect(text).toContain('Чёрный · единый размер · 1 шт.')
     expect(text).not.toContain('ONE SIZE')
   })
 
   it('flags orders that CDEK did not accept', async () => {
     const { formatOrderMessage } = await import('./telegram.ts')
     const text = formatOrderMessage({ ...base, cdek: { status: 'failed', env: 'test', error: 'Неверный ПВЗ <x>' } })
-    expect(text).toContain('В СДЭК не создан, оформите вручную:</b> Неверный ПВЗ &lt;x&gt;')
+    expect(text).toContain('⚠️ <b>В СДЭК не создан — оформите вручную.</b> Неверный ПВЗ &lt;x&gt;')
   })
 
   it('fits the Telegram limit without breaking HTML', async () => {
