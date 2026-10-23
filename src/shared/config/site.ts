@@ -36,7 +36,7 @@ export const site = {
   },
   shipping: {
     /** Вес и габариты посылки, если у товара не указаны свои (weightG, dimsCm). */
-    defaultPackage: { weightG: 600, dimsCm: [30, 20, 10] },
+    defaultPackage: { weightG: 600, dimsCm: [40, 30, 10] },
     /** Предоплата при заказе, ₽. 0 — вся сумма (товар + доставка) оплачивается при получении в пункте СДЭК. */
     prepaymentAmount: 0,
     /**

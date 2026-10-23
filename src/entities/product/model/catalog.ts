@@ -83,7 +83,7 @@ const HOODIE_MEASUREMENTS: Measurement[] = [
 const HOODIE_COMMON = {
   kind: 'hoodie',
   category: 'hoodies',
-  price: 4500,
+  price: 4200,
   sizes: APPAREL_SIZES,
   measurements: HOODIE_MEASUREMENTS,
   composition: '90% хлопок, 10% полиэстер',
@@ -106,7 +106,7 @@ export const products: Product[] = [
     name: 'Регбийка I will attract',
     kind: 'rugby',
     category: 'sweatshirts',
-    price: 3900,
+    price: 3700,
     skuBase: 'SRF/RG/IWILL',
     colorList: [{ id: 'blue', name: 'Синий', hex: '#2A3FD0', soldOut: ['L', 'XL'] }],
     sizes: APPAREL_SIZES,
@@ -164,7 +164,7 @@ export const products: Product[] = [
     country: MADE_IN,
     shippingNote: SHIPPING_IN_STOCK,
     details: ['Размер: 30 × 40 × 13 см', 'Принт'],
-    dimsCm: [40, 30, 13],
+    dimsCm: [40, 30, 10],
     weightG: 500,
   }),
 ]
