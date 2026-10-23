@@ -269,6 +269,10 @@ export function CheckoutPage() {
                   value={city}
                   error={errors.cityCode}
                   onUnavailable={() => setManual(true)}
+                  onClear={() => {
+                    setCity(null)
+                    setPointCode(null)
+                  }}
                   onChange={(c) => {
                     setCity(c)
                     setPointCode(null)
@@ -483,11 +487,14 @@ function CityField({
   value,
   error,
   onChange,
+  onClear,
   onUnavailable,
 }: {
   value: City | null
   error?: string
   onChange: (c: City) => void
+  /** Покупатель начал менять город — карта и пункты прежнего города больше не нужны и не закрывают список. */
+  onClear: () => void
   onUnavailable: () => void
 }) {
   const id = useId()
@@ -540,7 +547,10 @@ function CityField({
           placeholder="Начните вводить: Москва, Казань…"
           value={query}
           invalid={!!error}
-          onChange={(e) => setQuery(e.target.value)}
+          onChange={(e) => {
+            setQuery(e.target.value)
+            if (value && e.target.value !== value.name) onClear()
+          }}
           onFocus={() => options.length && setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
           onKeyDown={(e) => {
@@ -555,7 +565,7 @@ function CityField({
         />
       </Field>
       {open && options.length > 0 && (
-        <ul id={`${id}-list`} role="listbox" className="absolute inset-x-0 top-full z-20 mt-1 max-h-64 overflow-y-auto rounded-lg border border-ink/15 bg-white py-1 shadow-sm">
+        <ul id={`${id}-list`} role="listbox" className="absolute inset-x-0 top-full z-[1000] mt-1 max-h-64 overflow-y-auto rounded-lg border border-ink/15 bg-white py-1 shadow-sm">
           {options.map((c, i) => (
             <li
               key={c.code}
