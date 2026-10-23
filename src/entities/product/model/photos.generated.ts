@@ -2,6 +2,7 @@
 export const productPhotos: Record<string, string[]> = {
   "i-will-attract-rugby/blue": [
     "front",
+    "back",
     "model"
   ],
   "the-only-way-hoodie/grey": [
