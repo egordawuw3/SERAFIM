@@ -157,7 +157,7 @@ export const products: Product[] = [
     name: 'Рюкзак Jesus',
     kind: 'backpack',
     category: 'accessories',
-    price: 3900,
+    price: 3700,
     skuBase: 'SRF/BP/JESUS',
     colorList: [{ id: 'black', name: 'Чёрный', hex: '#1B1C1A' }],
     sizes: ['ONE SIZE'],

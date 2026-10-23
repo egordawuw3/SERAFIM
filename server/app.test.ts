@@ -91,8 +91,8 @@ describe('POST /api/orders', () => {
     expect(res.status).toBe(201)
     const data = (await res.json()) as { number: string; total: number; payOnPickup: number; cdekCreated: boolean }
     expect(data.number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
-    // 4 500 ₽ за худи + 282 ₽ доставки (СДЭК вернул 281.4 — округляем вверх).
-    expect(data).toMatchObject({ total: 4782, payOnPickup: 4782, cdekCreated: true })
+    // 4 500 ₽ за худи + 311 ₽ доставки (СДЭК вернул 281.4 → 282, +10 % наценки → 311).
+    expect(data).toMatchObject({ total: 4811, payOnPickup: 4811, cdekCreated: true })
 
     const saved = lastSaved()
     expect(saved.customer.phone).toBe('+79991234567')
@@ -106,7 +106,7 @@ describe('POST /api/orders', () => {
     expect(sent.packages[0].items[0].ware_key).toBe('p2-grey-M')
     expect(sent.shipment_point).toBe('MSK65')
     expect(sent.delivery_point).toBe('KZN3')
-    expect(sent.delivery_recipient_cost.value).toBe(282)
+    expect(sent.delivery_recipient_cost.value).toBe(311)
     expect(sent.packages[0].items[0].payment.value).toBe(4500)
   })
 
@@ -122,14 +122,14 @@ describe('POST /api/orders', () => {
       '1.1.1.10',
     )
     expect(res.status).toBe(201)
-    // 2 × 4 500 + 3 900 + 282 доставки.
-    expect(((await res.json()) as { total: number }).total).toBe(13182)
+    // 2 × 4 500 + 3 700 + 311 доставки.
+    expect(((await res.json()) as { total: number }).total).toBe(13011)
     const sent = cdekOrders.at(-1) as { packages: { weight: number; length: number; height: number; items: { amount: number; payment: { value: number } }[] }[] }
-    // Худи — упаковка по умолчанию 600 г, 30×25×8; рюкзак — 500 г, 40×30×13: стопкой 40 × 30 × (8·2 + 13).
-    expect(sent.packages[0]).toMatchObject({ weight: 1700, length: 40, height: 29 })
+    // Худи — упаковка по умолчанию 600 г, 30×20×10; рюкзак — 500 г, 40×30×13: стопкой 40 × 30 × (10·2 + 13).
+    expect(sent.packages[0]).toMatchObject({ weight: 1700, length: 40, height: 33 })
     expect(sent.packages[0].items.map((i) => [i.amount, i.payment.value])).toEqual([
       [2, 4500],
-      [1, 3900],
+      [1, 3700],
     ])
   })
 
@@ -229,8 +229,8 @@ describe('CDEK lookups', () => {
       quote: { sum: number; periodMin: number }
       totals: { total: number }
     }
-    expect(quote.quote).toMatchObject({ sum: 282, periodMin: 8 })
-    expect(quote.totals.total).toBe(4782)
+    expect(quote.quote).toMatchObject({ sum: 311, periodMin: 8 })
+    expect(quote.totals.total).toBe(4811)
 
     expect((await get('/api/cdek/quote?items=zzz:1&city=424')).status).toBe(400)
     expect((await get('/api/cdek/quote?items=p2:99&city=424')).status).toBe(400)
