@@ -464,6 +464,7 @@ describe('stock', () => {
       clientIp: () => '8.8.8.8',
       allowOrder: () => true,
       saveOrder: async (o) => void saved.push(structuredClone(o)),
+      findOrder: async (n) => saved.findLast((o) => o.number === n) ?? null,
       background: () => {},
       ...store,
     })
@@ -527,6 +528,7 @@ describe('personal data minimisation', () => {
       clientIp: () => `7.7.7.${telegramOk ? 1 : 2}`,
       allowOrder: () => true,
       saveOrder: async (o) => void saved.push(structuredClone(o)),
+      findOrder: async (n) => saved.findLast((o) => o.number === n) ?? null,
       background: (_c, task) => void tasks.push(task),
       ...memoryStock(),
     })

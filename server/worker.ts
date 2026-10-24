@@ -3,7 +3,7 @@ import { createApi } from './api.ts'
 import { deliveryFrom, type DeliveryEnv } from './cdek.ts'
 import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS, PERSONAL_DATA_RETENTION_DAYS } from './limits.ts'
 import type { Order } from './order.ts'
-import type { StockLine, StockResult } from './stock.ts'
+import type { StockChange, StockLine, StockResult } from './stock.ts'
 
 /*
  * Cloudflare Workers: статику (готовые страницы из пререндера, фото, шрифты) Cloudflare отдаёт сам —
@@ -27,6 +27,8 @@ interface Env extends DeliveryEnv {
   /** Секреты: wrangler secret put TELEGRAM_BOT_TOKEN / TELEGRAM_CHAT_ID. */
   TELEGRAM_BOT_TOKEN?: string
   TELEGRAM_CHAT_ID?: string
+  /** Секрет вебхука бота: wrangler secret put TELEGRAM_WEBHOOK_SECRET, затем npm run bot:setup. */
+  TELEGRAM_WEBHOOK_SECRET?: string
   /** Адрес сайта после подключения домена, например https://serafim.ru (vars в wrangler.jsonc). */
   SITE_ORIGIN?: string
 }
@@ -37,7 +39,7 @@ function platformFor(env: Env) {
     // Ответ покупателю не ждёт номера СДЭК и Telegram: задача доживает после ответа (до 30 с).
     background: (c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }, task: Promise<unknown>) => c.executionCtx.waitUntil(task),
     siteOrigin: env.SITE_ORIGIN?.replace(/\/+$/, '') ?? '',
-    telegram: { token: env.TELEGRAM_BOT_TOKEN ?? '', chatId: env.TELEGRAM_CHAT_ID ?? '' },
+    telegram: { token: env.TELEGRAM_BOT_TOKEN ?? '', chatId: env.TELEGRAM_CHAT_ID ?? '', webhookSecret: env.TELEGRAM_WEBHOOK_SECRET ?? '' },
     // Cloudflare сам подставляет настоящий IP посетителя — подделать его клиент не может.
     clientIp: (c: { req: { header(name: string): string | undefined } }) => c.req.header('cf-connecting-ip') ?? 'unknown',
     // Фиксированное окно в одной строке на IP; вставка и счёт атомарны (один запрос), гонок между инстансами нет.
@@ -61,6 +63,17 @@ function platformFor(env: Env) {
       )
         .bind(order.number, order.createdAt, JSON.stringify(order))
         .run()
+    },
+    async findOrder(number: string) {
+      const row = await env.DB.prepare('SELECT data FROM orders WHERE number = ?1').bind(number).first<{ data: string }>()
+      return row ? (JSON.parse(row.data) as Order) : null
+    },
+    async setStock(sku: string, change: StockChange) {
+      const row = await ('qty' in change
+        ? env.DB.prepare('INSERT INTO stock (sku, qty) VALUES (?1, max(?2, 0)) ON CONFLICT(sku) DO UPDATE SET qty = max(?2, 0) RETURNING qty').bind(sku, change.qty)
+        : env.DB.prepare('INSERT INTO stock (sku, qty) VALUES (?1, max(?2, 0)) ON CONFLICT(sku) DO UPDATE SET qty = max(qty + ?2, 0) RETURNING qty').bind(sku, change.delta)
+      ).first<{ qty: number }>()
+      return row?.qty ?? 0
     },
     async stock() {
       const { results } = await env.DB.prepare('SELECT sku, qty FROM stock').all<{ sku: string; qty: number }>()

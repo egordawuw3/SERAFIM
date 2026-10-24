@@ -20,6 +20,7 @@ export const config = {
   telegram: {
     token: env.TELEGRAM_BOT_TOKEN ?? '',
     chatId: env.TELEGRAM_CHAT_ID ?? '',
+    webhookSecret: env.TELEGRAM_WEBHOOK_SECRET ?? '',
   },
   /** Количество заявок с одного IP за окно. */
   rateLimit: { ...ORDER_RATE_LIMIT, maxKeys: 10_000 },

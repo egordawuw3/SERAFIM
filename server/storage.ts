@@ -61,6 +61,12 @@ export function saveOrder(order: Order): Promise<void> {
   })
 }
 
+/** Заказ по номеру (последняя запись с этим номером). */
+export async function findOrder(number: string): Promise<Order | null> {
+  const line = (await readLines()).findLast((l) => numberOf(l) === number)
+  return line ? (JSON.parse(line) as Order) : null
+}
+
 /**
  * Ежедневная чистка: заказы старше retentionDays удаляются, из заказов старше PERSONAL_DATA_RETENTION_DAYS
  * стираются персональные данные. Возвращает, сколько заказов удалено и сколько обезличено.

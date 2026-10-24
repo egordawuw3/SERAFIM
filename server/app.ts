@@ -9,7 +9,7 @@ import { config } from './config.ts'
 import { createRateLimiter } from './rateLimit.ts'
 import { CACHE_RULES } from './securityHeaders.ts'
 import { memoryStock } from './stock.ts'
-import { saveOrder } from './storage.ts'
+import { findOrder, saveOrder } from './storage.ts'
 
 const allow = createRateLimiter(config.rateLimit)
 
@@ -38,6 +38,7 @@ export const app = createApi({
   clientIp,
   allowOrder: (ip) => allow(ip),
   saveOrder,
+  findOrder,
   // Учёт остатков ведётся в D1 (Cloudflare); у Node-сервера размеры не ограничены.
   ...memoryStock(),
 })

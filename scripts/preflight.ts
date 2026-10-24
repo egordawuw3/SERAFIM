@@ -16,7 +16,7 @@ import { site } from '../src/shared/config/site.ts'
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), '..')
 const DOMAIN = 'serafim6s.ru'
 const ORIGIN = `https://${DOMAIN}`
-const REQUIRED_SECRETS = ['CDEK_CLIENT_ID', 'CDEK_CLIENT_SECRET', 'SENDER_PVZ_CODE', 'SENDER_NAME', 'SENDER_PHONE', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID']
+const REQUIRED_SECRETS = ['CDEK_CLIENT_ID', 'CDEK_CLIENT_SECRET', 'SENDER_PVZ_CODE', 'SENDER_NAME', 'SENDER_PHONE', 'TELEGRAM_BOT_TOKEN', 'TELEGRAM_CHAT_ID', 'TELEGRAM_WEBHOOK_SECRET']
 const CDEK = 'https://api.cdek.ru/v2'
 
 const results: { ok: boolean; name: string; detail: string; who?: string }[] = []
@@ -92,6 +92,12 @@ if (local('TELEGRAM_BOT_TOKEN') && local('TELEGRAM_CHAT_ID')) {
     body: JSON.stringify({ chat_id: local('TELEGRAM_CHAT_ID'), text: 'Проверка связи с сайтом' }),
   }).catch(() => null)
   check(Boolean(res?.ok), 'бот пишет в TELEGRAM_CHAT_ID («Проверка связи с сайтом»)', res?.ok ? '' : `ответ ${res?.status ?? 'нет'}`, 'ты')
+  // Бот продавца (остатки, «Вернуть на склад»): вебхук должен вести на сайт и не копить ошибки.
+  const info = (await fetch(`https://api.telegram.org/bot${local('TELEGRAM_BOT_TOKEN')}/getWebhookInfo`)
+    .then((r) => r.json())
+    .catch(() => null)) as { result?: { url?: string; last_error_message?: string } } | null
+  const hook = info?.result
+  check(Boolean(hook?.url?.endsWith('/api/telegram') && !hook.last_error_message), 'вебхук бота подключён (npm run bot:setup)', hook?.last_error_message ?? hook?.url ?? 'нет', 'ты')
 } else {
   check(false, 'бот пишет в TELEGRAM_CHAT_ID', 'нет значений в .env.preflight', 'ты')
 }

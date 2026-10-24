@@ -76,17 +76,41 @@ export function formatOrderMessage(order: Order): string {
 
 export interface TelegramConfig {
   token: string
+  /** Чат продавца: сюда приходят заказы, и только его команды выполняет бот (server/bot.ts). */
   chatId: string
+  /** Секрет вебхука бота (заголовок X-Telegram-Bot-Api-Secret-Token); пусто — бот не принимает команды. */
+  webhookSecret?: string
 }
 
-export async function sendToTelegram(text: string, { token, chatId }: TelegramConfig): Promise<void> {
-  const res = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+interface InlineButton {
+  text: string
+  callback_data: string
+}
+export type InlineKeyboard = InlineButton[][]
+
+/** Вызов Bot API; ошибка Telegram — исключение. */
+export async function telegramCall(method: string, body: Record<string, unknown>, token: string): Promise<void> {
+  const res = await fetch(`https://api.telegram.org/bot${token}/${method}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: 'HTML', link_preview_options: { is_disabled: true } }),
+    body: JSON.stringify(body),
     signal: AbortSignal.timeout(10_000),
   })
   if (!res.ok) {
     throw new Error(`Telegram API ${res.status}: ${await res.text()}`)
   }
+}
+
+export function sendToTelegram(text: string, { token, chatId }: TelegramConfig, keyboard?: InlineKeyboard): Promise<void> {
+  return telegramCall(
+    'sendMessage',
+    {
+      chat_id: chatId,
+      text,
+      parse_mode: 'HTML',
+      link_preview_options: { is_disabled: true },
+      ...(keyboard ? { reply_markup: { inline_keyboard: keyboard } } : {}),
+    },
+    token,
+  )
 }

@@ -16,7 +16,14 @@ export interface StockStore {
   stock(): Promise<Record<string, number>>
   /** Списывает остаток под заказ — всё или ничего. */
   takeStock(lines: StockLine[]): Promise<StockResult>
+  /**
+   * Продавец меняет остаток (бот): на delta (не ниже нуля) или ставит qty. Артикул без записи начинает учитываться.
+   * Возвращает новый остаток.
+   */
+  setStock(sku: string, change: StockChange): Promise<number>
 }
+
+export type StockChange = { delta: number } | { qty: number }
 
 /** Одинаковые артикулы из разных строк корзины — одной строкой: списываем и проверяем общее количество. */
 export function mergeStockLines(lines: StockLine[]): StockLine[] {
@@ -37,6 +44,10 @@ export function memoryStock(initial: Record<string, number> = {}): StockStore {
       const after: Record<string, number> = {}
       for (const l of lines) if (l.sku in left) after[l.sku] = left[l.sku] -= l.qty
       return { ok: true, left: after }
+    },
+    async setStock(sku, change) {
+      left[sku] = Math.max(0, 'qty' in change ? change.qty : (left[sku] ?? 0) + change.delta)
+      return left[sku]
     },
   }
 }

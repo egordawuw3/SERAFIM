@@ -33,6 +33,7 @@ import {
 import { createRateLimiter } from './rateLimit.ts'
 import { SECURITY_HEADERS } from './securityHeaders.ts'
 import { mergeStockLines, type StockStore } from './stock.ts'
+import { handleBotUpdate, orderKeyboard } from './bot.ts'
 import { formatOrderMessage, sendToTelegram, type TelegramConfig } from './telegram.ts'
 
 /*
@@ -52,11 +53,20 @@ export interface ApiPlatform extends StockStore {
   allowOrder(ip: string): boolean | Promise<boolean>
   /** Сохраняет заказ; повторный вызов с тем же номером обновляет запись (номер СДЭК приходит позже). */
   saveOrder(order: Order): Promise<void>
+  /** Заказ по номеру — для кнопки «Вернуть на склад» в боте. */
+  findOrder(number: string): Promise<Order | null>
   /** Задача после ответа покупателю: ждать номер СДЭК и написать продавцу (в Workers — waitUntil). */
   background(c: Context, task: Promise<unknown>): void
 }
 
 const SAFE_METHODS = new Set(['GET', 'HEAD', 'OPTIONS'])
+
+/** Сравнение секретов за одинаковое время — по скорости ответа секрет не подобрать. */
+function safeEqual(a: string, b: string): boolean {
+  let diff = a.length ^ b.length
+  for (let i = 0; i < b.length; i++) diff |= (a.charCodeAt(i) || 0) ^ b.charCodeAt(i)
+  return diff === 0
+}
 const formFields = new Set<string>(ORDER_FORM_FIELDS)
 
 /** Сколько ждать, пока СДЭК присвоит заказу номер: 8 проверок раз в 2 с. */
@@ -238,7 +248,7 @@ export function createApi(platform: ApiPlatform): Hono {
       console.info(`[orders] ${order.number} сохранён (Telegram не настроен — уведомление не отправлено)`)
     } else {
       try {
-        await sendToTelegram(formatOrderMessage(order), platform.telegram)
+        await sendToTelegram(formatOrderMessage(order), platform.telegram, orderKeyboard(order))
         sent = true
       } catch (err) {
         console.error(`[orders] ${order.number}: не удалось отправить в Telegram`, err)
@@ -250,6 +260,16 @@ export function createApi(platform: ApiPlatform): Hono {
       await platform.saveOrder(anonymize(order)).catch((err) => console.error(`[orders] ${order.number}: не удалось обезличить`, err))
     }
   }
+
+  // Вебхук бота продавца: Telegram подписывает запросы секретом, заданным при setWebhook (npm run bot:setup).
+  // Отвечаем сразу, команду выполняем в фоне — иначе Telegram повторит запрос.
+  app.post('/api/telegram', limitBody, async (c) => {
+    const secret = platform.telegram.webhookSecret
+    if (!secret || !safeEqual(c.req.header('x-telegram-bot-api-secret-token') ?? '', secret)) return c.json<ApiError>({ error: 'Нет доступа' }, 403)
+    const update: unknown = await c.req.json().catch(() => null)
+    platform.background(c, handleBotUpdate(update, platform).catch((err) => console.error('[bot]', err)))
+    return c.json({ ok: true })
+  })
 
   app.post('/api/orders', limitBody, async (c) => {
     const body: unknown = await c.req.json().catch(() => null)
