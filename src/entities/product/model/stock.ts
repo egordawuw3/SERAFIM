@@ -13,9 +13,6 @@ const stockKey = (color: ProductColor, size: Size) => `${color.sku}/${size}`
 /** Остаток размера; undefined — остаток не ведётся (не ограничен). */
 export const stockLeft = (color: ProductColor, size: Size): number | undefined => useStock.getState().left[stockKey(color, size)]
 
-/** Сколько штук считать «мало» — тогда под размерами пишем «Осталось N шт.». */
-export const LOW_STOCK = 3
-
 let loading: Promise<void> | null = null
 
 /** Загружает остатки один раз за визит; force — заново (например, заказ отклонён: размер только что раскупили). */

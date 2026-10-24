@@ -1,7 +1,7 @@
 import { useId } from 'react'
 import { cn } from '@/shared/lib/cn'
 import { isSizeAvailable } from '../lib/availability'
-import { LOW_STOCK, stockLeft, useStock } from '../model/stock'
+import { stockLeft, useStock } from '../model/stock'
 import type { Product, ProductColor, Size } from '../model/types'
 
 interface Props {
@@ -15,7 +15,7 @@ interface Props {
  * Выбор размера плашками в ряд — стандарт магазинов одежды: все размеры и наличие видны сразу, без раскрытия списка.
  * Под капотом — настоящие радиокнопки: стрелки клавиатуры, Tab и скринридеры работают без доработок.
  * Проданные размеры зачёркнуты и недоступны, а для скринридера подписаны «нет в наличии».
- * Если выбранного размера осталось мало — под плашками «Осталось N шт.».
+ * Под плашками — сколько осталось выбранного размера («Осталось N шт.»), если остаток ведётся.
  */
 export function SizePicker({ product, color, value, onChange }: Props) {
   const name = useId()
@@ -55,7 +55,7 @@ export function SizePicker({ product, color, value, onChange }: Props) {
         })}
       </div>
       <p className="mt-2 min-h-5 text-ink/70" aria-live="polite">
-        {left !== undefined && left > 0 && left <= LOW_STOCK && (left === 1 ? 'Последний в этом размере' : `Осталось ${left} шт.`)}
+        {left !== undefined && left > 0 && (left === 1 ? 'Последний в этом размере' : `Осталось ${left} шт.`)}
       </p>
     </fieldset>
   )
