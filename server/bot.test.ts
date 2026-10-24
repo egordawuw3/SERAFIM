@@ -1,6 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { handleBotUpdate, orderKeyboard, parseStockCommand, type BotPlatform } from './bot.ts'
-import type { Order } from './order.ts'
+import { handleBotUpdate, parseStockCommand, type BotPlatform } from './bot.ts'
 import { memoryStock } from './stock.ts'
 
 const ADMIN = 1860235658
@@ -20,14 +19,10 @@ beforeEach(() => {
 })
 afterEach(() => vi.unstubAllGlobals())
 
-function platform(stock: Record<string, number> = { [ONLY_WAY_M]: 7 }): BotPlatform & { orders: Order[] } {
-  const orders: Order[] = []
+function platform(stock: Record<string, number> = { [ONLY_WAY_M]: 7 }): BotPlatform {
   return {
     telegram: { token: 't', chatId: String(ADMIN), webhookSecret: 's' },
     ...memoryStock(stock),
-    orders,
-    findOrder: async (n) => orders.findLast((o) => o.number === n) ?? null,
-    saveOrder: async (o) => void orders.push(structuredClone(o)),
   }
 }
 
@@ -105,30 +100,6 @@ describe('bot: stock', () => {
   })
 })
 
-describe('bot: return to stock', () => {
-  const order = {
-    number: 'SRF-261024-AAAA',
-    items: [{ productId: 'p2', name: 'Худи The only way', color: 'Серый меланж', size: 'M', qty: 2, price: 4200, sku: ONLY_WAY_M, left: 5 }],
-  } as Order
-
-  it('order message gets the button only when stock is tracked', () => {
-    expect(orderKeyboard(order)).toEqual([[{ text: '↩︎ Вернуть на склад', callback_data: 'r?:SRF-261024-AAAA' }]])
-    expect(orderKeyboard({ ...order, items: [{ ...order.items[0], left: undefined }] })).toBeUndefined()
-  })
-
-  it('asks for confirmation, returns once and never twice', async () => {
-    const p = platform({ [ONLY_WAY_M]: 5 })
-    p.orders.push(order)
-    await handleBotUpdate(press('r?:SRF-261024-AAAA'), p)
-    expect((await p.stock())[ONLY_WAY_M]).toBe(5)
-    await handleBotUpdate(press('r:SRF-261024-AAAA'), p)
-    expect((await p.stock())[ONLY_WAY_M]).toBe(7)
-    expect(p.orders.at(-1)!.stockReturnedAt).toBeTruthy()
-    await handleBotUpdate(press('r:SRF-261024-AAAA'), p)
-    expect((await p.stock())[ONLY_WAY_M]).toBe(7)
-  })
-})
-
 describe('bot: webhook', () => {
   it('accepts updates only with the webhook secret', async () => {
     const { createApi } = await import('./api.ts')
@@ -141,6 +112,7 @@ describe('bot: webhook', () => {
       sender: { name: '', phone: '', pointCode: '' },
       clientIp: () => '1.1.1.1',
       allowOrder: () => true,
+      saveOrder: async () => {},
       background: (_c, task) => void tasks.push(task),
     })
     const post = (secret?: string) =>

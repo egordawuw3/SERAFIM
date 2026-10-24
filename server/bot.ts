@@ -1,21 +1,18 @@
 import { products } from '../src/entities/product/model/catalog.ts'
 import type { Product, Size } from '../src/entities/product/model/types.ts'
-import { sizeLabel, type Order } from './order.ts'
-import { mergeStockLines, type StockStore } from './stock.ts'
+import { sizeLabel } from './order.ts'
+import type { StockStore } from './stock.ts'
 import { telegramCall, type InlineKeyboard, type TelegramConfig } from './telegram.ts'
 
 /*
- * Бот продавца (@Serafim_orders_bot): остатки по размерам и возврат вещей отменённого заказа на склад.
+ * Бот продавца (@Serafim_orders_bot): остатки по размерам.
  * Команды принимаются только от продавца (TelegramConfig.chatId) и помощников (adminIds) — остальным бот не отвечает.
  *   /stock (или «остатки») — по карточке на товар: у каждого размера остаток и кнопки −1 / +1;
- *   «The only way M 5» — поставить остаток, «The only way M +3» / «-1» — изменить, «Рюкзак 10» — для товара без размеров;
- *   под сообщением о заказе — «Вернуть на склад» (с подтверждением, один раз на заказ).
+ *   «The only way M 5» — поставить остаток, «The only way M +3» / «-1» — изменить, «Рюкзак 10» — для товара без размеров.
  */
 
 export interface BotPlatform extends StockStore {
   telegram: TelegramConfig
-  findOrder(number: string): Promise<Order | null>
-  saveOrder(order: Order): Promise<void>
 }
 
 interface Article {
@@ -43,9 +40,6 @@ const HELP = [
   '<code>Рюкзак 10</code> — для вещи без размеров',
   '',
   'На нуле размер на сайте становится «нет в наличии».',
-  '',
-  '<b>Отменённый заказ</b>',
-  'Если покупатель не забрал посылку — под сообщением о заказе нажмите «Вернуть на склад».',
 ].join('\n')
 
 // ---------- карточка остатков товара ----------
@@ -103,14 +97,6 @@ export function parseStockCommand(text: string): Parsed | null {
   const article = ARTICLES.find((a) => a.product === product && a.size === size)
   if (!article) return { error: `У «${escapeHtml(product.name)}» нет размера ${size}.` }
   return { article, change }
-}
-
-// ---------- кнопка «Вернуть на склад» под заказом ----------
-
-/** Кнопка под сообщением о заказе — если в заказе есть вещи с учётом остатка. */
-export function orderKeyboard(order: Order): InlineKeyboard | undefined {
-  if (!order.items.some((i) => i.left !== undefined)) return undefined
-  return [[{ text: '↩︎ Вернуть на склад', callback_data: `r?:${order.number}` }]]
 }
 
 // ---------- обработка обновлений Telegram ----------
@@ -173,29 +159,6 @@ export async function handleBotUpdate(raw: unknown, p: BotPlatform): Promise<voi
     const now = await p.setStock(article.sku, { delta: Number(delta[2]) })
     await setKeyboard(stockCard(article.product, await p.stock()).keyboard)
     return answer(`${sizeLabel(article.size)}: ${now} шт.`)
-  }
-
-  const ret = /^r(\?|x|):(.+)$/.exec(data)
-  if (ret) {
-    const [, mode, number] = ret
-    if (mode === '?') {
-      await setKeyboard([[{ text: 'Да, вернуть', callback_data: `r:${number}` }, { text: 'Отмена', callback_data: `rx:${number}` }]])
-      return answer('Вернуть вещи этого заказа на склад?')
-    }
-    if (mode === 'x') {
-      await setKeyboard([[{ text: '↩︎ Вернуть на склад', callback_data: `r?:${number}` }]])
-      return answer()
-    }
-    const order = await p.findOrder(number)
-    if (!order) return answer('Заказ не найден')
-    if (!order.stockReturnedAt) {
-      const left = await p.stock()
-      const lines = mergeStockLines(order.items.filter((i) => i.sku in left).map((i) => ({ sku: i.sku, qty: i.qty })))
-      for (const l of lines) await p.setStock(l.sku, { delta: l.qty })
-      await p.saveOrder({ ...order, stockReturnedAt: new Date().toISOString() })
-    }
-    await setKeyboard([[{ text: '✓ Возвращено на склад', callback_data: 'n' }]])
-    return answer(order.stockReturnedAt ? 'Уже возвращено' : 'Вернул на склад')
   }
 
   return answer()

@@ -33,7 +33,7 @@ import {
 import { createRateLimiter } from './rateLimit.ts'
 import { SECURITY_HEADERS } from './securityHeaders.ts'
 import { mergeStockLines, type StockStore } from './stock.ts'
-import { handleBotUpdate, orderKeyboard } from './bot.ts'
+import { handleBotUpdate } from './bot.ts'
 import { formatOrderMessage, sendToTelegram, type TelegramConfig } from './telegram.ts'
 
 /*
@@ -53,8 +53,6 @@ export interface ApiPlatform extends StockStore {
   allowOrder(ip: string): boolean | Promise<boolean>
   /** Сохраняет заказ; повторный вызов с тем же номером обновляет запись (номер СДЭК приходит позже). */
   saveOrder(order: Order): Promise<void>
-  /** Заказ по номеру — для кнопки «Вернуть на склад» в боте. */
-  findOrder(number: string): Promise<Order | null>
   /** Задача после ответа покупателю: ждать номер СДЭК и написать продавцу (в Workers — waitUntil). */
   background(c: Context, task: Promise<unknown>): void
 }
@@ -248,7 +246,7 @@ export function createApi(platform: ApiPlatform): Hono {
       console.info(`[orders] ${order.number} сохранён (Telegram не настроен — уведомление не отправлено)`)
     } else {
       try {
-        await sendToTelegram(formatOrderMessage(order), platform.telegram, orderKeyboard(order))
+        await sendToTelegram(formatOrderMessage(order), platform.telegram)
         sent = true
       } catch (err) {
         console.error(`[orders] ${order.number}: не удалось отправить в Telegram`, err)

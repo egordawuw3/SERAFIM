@@ -53,8 +53,6 @@ export interface Order {
   cdek: OrderCdek
   /** Когда из заказа стёрты персональные данные (имя, телефон, Telegram, комментарий, описанный вручную пункт). */
   personalDataRemovedAt?: string
-  /** Когда продавец вернул вещи заказа на склад (кнопка в Telegram) — повторно не возвращаются. */
-  stockReturnedAt?: string
 }
 
 /**

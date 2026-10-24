@@ -66,10 +66,6 @@ function platformFor(env: Env) {
         .bind(order.number, order.createdAt, JSON.stringify(order))
         .run()
     },
-    async findOrder(number: string) {
-      const row = await env.DB.prepare('SELECT data FROM orders WHERE number = ?1').bind(number).first<{ data: string }>()
-      return row ? (JSON.parse(row.data) as Order) : null
-    },
     async setStock(sku: string, change: StockChange) {
       const row = await ('qty' in change
         ? env.DB.prepare('INSERT INTO stock (sku, qty) VALUES (?1, max(?2, 0)) ON CONFLICT(sku) DO UPDATE SET qty = max(?2, 0) RETURNING qty').bind(sku, change.qty)
