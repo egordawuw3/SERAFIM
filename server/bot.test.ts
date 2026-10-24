@@ -43,6 +43,14 @@ describe('bot: access', () => {
     expect((await p.stock())[ONLY_WAY_M]).toBe(7)
   })
 
+  it('obeys helpers from adminIds and replies to their own chat', async () => {
+    const p = platform()
+    p.telegram.adminIds = '777, 888'
+    await handleBotUpdate(message('The only way M 3', 888), p)
+    expect((await p.stock())[ONLY_WAY_M]).toBe(3)
+    expect(calls.at(-1)!.body.chat_id).toBe(888)
+  })
+
   it('does not let others press stock buttons', async () => {
     const p = platform()
     await handleBotUpdate(press(`d:${ONLY_WAY_M}:-1`, 42), p)

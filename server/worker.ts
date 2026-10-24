@@ -29,6 +29,8 @@ interface Env extends DeliveryEnv {
   TELEGRAM_CHAT_ID?: string
   /** Секрет вебхука бота: wrangler secret put TELEGRAM_WEBHOOK_SECRET, затем npm run bot:setup. */
   TELEGRAM_WEBHOOK_SECRET?: string
+  /** Помощники продавца в боте (id через запятую): wrangler secret put TELEGRAM_ADMIN_IDS. */
+  TELEGRAM_ADMIN_IDS?: string
   /** Адрес сайта после подключения домена, например https://serafim.ru (vars в wrangler.jsonc). */
   SITE_ORIGIN?: string
 }
@@ -39,7 +41,7 @@ function platformFor(env: Env) {
     // Ответ покупателю не ждёт номера СДЭК и Telegram: задача доживает после ответа (до 30 с).
     background: (c: { executionCtx: { waitUntil(p: Promise<unknown>): void } }, task: Promise<unknown>) => c.executionCtx.waitUntil(task),
     siteOrigin: env.SITE_ORIGIN?.replace(/\/+$/, '') ?? '',
-    telegram: { token: env.TELEGRAM_BOT_TOKEN ?? '', chatId: env.TELEGRAM_CHAT_ID ?? '', webhookSecret: env.TELEGRAM_WEBHOOK_SECRET ?? '' },
+    telegram: { token: env.TELEGRAM_BOT_TOKEN ?? '', chatId: env.TELEGRAM_CHAT_ID ?? '', webhookSecret: env.TELEGRAM_WEBHOOK_SECRET ?? '', adminIds: env.TELEGRAM_ADMIN_IDS ?? '' },
     // Cloudflare сам подставляет настоящий IP посетителя — подделать его клиент не может.
     clientIp: (c: { req: { header(name: string): string | undefined } }) => c.req.header('cf-connecting-ip') ?? 'unknown',
     // Фиксированное окно в одной строке на IP; вставка и счёт атомарны (один запрос), гонок между инстансами нет.

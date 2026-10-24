@@ -78,6 +78,8 @@ export interface TelegramConfig {
   token: string
   /** Чат продавца: сюда приходят заказы, и только его команды выполняет бот (server/bot.ts). */
   chatId: string
+  /** Ещё кто может управлять ботом (id через запятую), кроме chatId; заказы им не приходят. */
+  adminIds?: string
   /** Секрет вебхука бота (заголовок X-Telegram-Bot-Api-Secret-Token); пусто — бот не принимает команды. */
   webhookSecret?: string
 }

@@ -21,6 +21,7 @@ export const config = {
     token: env.TELEGRAM_BOT_TOKEN ?? '',
     chatId: env.TELEGRAM_CHAT_ID ?? '',
     webhookSecret: env.TELEGRAM_WEBHOOK_SECRET ?? '',
+    adminIds: env.TELEGRAM_ADMIN_IDS ?? '',
   },
   /** Количество заявок с одного IP за окно. */
   rateLimit: { ...ORDER_RATE_LIMIT, maxKeys: 10_000 },

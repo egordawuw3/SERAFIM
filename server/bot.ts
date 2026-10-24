@@ -6,7 +6,7 @@ import { telegramCall, type InlineKeyboard, type TelegramConfig } from './telegr
 
 /*
  * Бот продавца (@Serafim_orders_bot): остатки по размерам и возврат вещей отменённого заказа на склад.
- * Команды принимаются только из чата продавца (TelegramConfig.chatId) — остальным бот не отвечает.
+ * Команды принимаются только от продавца (TelegramConfig.chatId) и помощников (adminIds) — остальным бот не отвечает.
  *   /stock (или «остатки») — по карточке на товар: у каждого размера остаток и кнопки −1 / +1;
  *   «The only way M 5» — поставить остаток, «The only way M +3» / «-1» — изменить, «Рюкзак 10» — для товара без размеров;
  *   под сообщением о заказе — «Вернуть на склад» (с подтверждением, один раз на заказ).
@@ -122,14 +122,19 @@ interface Update {
 
 export async function handleBotUpdate(raw: unknown, p: BotPlatform): Promise<void> {
   const update = (raw ?? {}) as Update
-  const admin = Number(p.telegram.chatId)
+  const admins = new Set([p.telegram.chatId, ...(p.telegram.adminIds ?? '').split(',')].map((s) => Number(s.trim())).filter(Boolean))
+  const isAdmin = (id?: number) => id !== undefined && admins.has(id)
   const call = (method: string, body: Record<string, unknown>) => telegramCall(method, body, p.telegram.token)
-  const reply = (text: string, keyboard?: InlineKeyboard) =>
-    call('sendMessage', { chat_id: admin, text, parse_mode: 'HTML', ...(keyboard?.length ? { reply_markup: { inline_keyboard: keyboard } } : {}) })
-
   const msg = update.message
+  const reply = (text: string, keyboard?: InlineKeyboard) =>
+    call('sendMessage', { chat_id: msg?.chat?.id, text, parse_mode: 'HTML', ...(keyboard?.length ? { reply_markup: { inline_keyboard: keyboard } } : {}) })
+
   if (msg) {
-    if (!admin || msg.from?.id !== admin || msg.chat?.id !== admin || !msg.text) return
+    if (!isAdmin(msg.from?.id) || msg.chat?.id !== msg.from?.id || !msg.text) {
+      // Чужим не отвечаем, но id пишем в лог — так проще добавить помощника (TELEGRAM_ADMIN_IDS).
+      console.info('[bot] команда не от продавца, id', msg.from?.id)
+      return
+    }
     const text = msg.text.trim()
     const command = text.toLowerCase().replace(/^\//, '').replace(/@\w+$/, '')
     if (['start', 'help', 'помощь'].includes(command)) return reply(HELP)
@@ -154,7 +159,7 @@ export async function handleBotUpdate(raw: unknown, p: BotPlatform): Promise<voi
   const cb = update.callback_query
   if (!cb) return
   const answer = (text?: string) => call('answerCallbackQuery', { callback_query_id: cb.id, ...(text ? { text } : {}) })
-  if (!admin || cb.from?.id !== admin) return answer('Бот работает только для продавца')
+  if (!isAdmin(cb.from?.id)) return answer('Бот работает только для продавца')
   const chatId = cb.message?.chat?.id
   const messageId = cb.message?.message_id
   const setKeyboard = (keyboard: InlineKeyboard) =>
