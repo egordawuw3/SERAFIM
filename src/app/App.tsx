@@ -8,6 +8,7 @@ import { ShortLinkRedirect } from '@/pages/ShortLinkRedirect'
 import { registerPrefetch } from '@/shared/lib/prefetch'
 import { loadCartPanel } from '@/widgets/cartPanelLoader'
 import { ErrorBoundary } from './ErrorBoundary'
+import { loadStock } from '@/entities/product/model/stock'
 import { Layout } from './Layout'
 import { ScrollManager } from './ScrollManager'
 import { RouteMeta } from './seo/RouteMeta'
@@ -37,6 +38,7 @@ export function App() {
   // и первый рендер в браузере должен с ним совпасть (иначе React перерисует страницу целиком).
   useEffect(() => {
     void useCart.persist.rehydrate()
+    void loadStock()
   }, [])
 
   return (

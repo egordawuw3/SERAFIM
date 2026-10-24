@@ -15,6 +15,7 @@ import { orderTotals } from '@/entities/order/model/pricing'
 import { MANUAL_POINT, orderRequestSchema, type OrderRequest } from '@/entities/order/model/schema'
 import { getProductBySlug } from '@/entities/product/api/productApi'
 import { findColor, isSizeAvailable } from '@/entities/product/lib/availability'
+import { loadStock } from '@/entities/product/model/stock'
 import type { Size } from '@/entities/product/model/types'
 import { toCartItem } from '@/features/cart/lib/toCartItem'
 import { countItems, itemKey, subtotal } from '@/features/cart/model/cart'
@@ -200,6 +201,8 @@ export function CheckoutPage() {
       navigate('/checkout/success', { replace: true, state: { order } })
       clearCart()
     } catch (err) {
+      // Возможно, размер только что раскупили: обновляем остатки, чтобы корзина и карточки это показали.
+      void loadStock(true)
       const fields = err instanceof OrderSubmitError ? err.fields : {}
       const message = err instanceof Error ? err.message : 'Не удалось оформить заказ'
       setErrors({ ...fields, form: message })

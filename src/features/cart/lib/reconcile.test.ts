@@ -23,11 +23,11 @@ describe('reconcileCart', () => {
     expect(item).toMatchObject({ price: product.price, name: product.name, slug: product.slug, qty: 2 })
   })
 
-  it('drops unknown products, colors and sold-out sizes', () => {
+  it('drops unknown products, colors and sizes', () => {
     const items = [
       { ...base, productId: 'nope' },
       { ...base, colorId: 'nope' },
-      { ...base, productId: 'p1', colorId: 'blue', size: 'L' }, // L регбийки распродан
+      { ...base, productId: 'p5', colorId: 'black', size: 'M' }, // у рюкзака только единый размер
     ]
     expect(reconcileCart(items, getProductById)).toEqual([])
   })

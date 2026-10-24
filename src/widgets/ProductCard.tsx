@@ -1,6 +1,7 @@
 import { memo, useState } from 'react'
 import { Link, useLocation } from 'react-router'
 import { isColorSoldOut } from '@/entities/product/lib/availability'
+import { useStock } from '@/entities/product/model/stock'
 import { photoAlt } from '@/entities/product/lib/photoAlt'
 import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
@@ -42,6 +43,7 @@ export const ProductCard = memo(function ProductCard({
 }: Props) {
   const Heading = headingLevel === 2 ? 'h2' : 'h3'
   const location = useLocation()
+  useStock((s) => s.left) // перерисовка, когда пришли остатки
   const { color, selectColor } = useProductSelection(product, colorId)
   // Фото сзади нужно только для эффекта при наведении: монтируем его после первого наведения мышью.
   // На телефонах наведения нет — лишний файл на каждую карточку не скачивается вовсе.

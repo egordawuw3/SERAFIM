@@ -48,6 +48,7 @@ export function formatOrderMessage(order: Order): string {
       '',
       `<b>${escapeHtml(i.name)}</b>`,
       `${escapeHtml(i.color)} · ${escapeHtml(sizeLabel(i.size))} · ${i.qty} шт. — ${rub(i.price * i.qty)}`,
+      ...(i.left === undefined ? [] : [i.left ? `Осталось в этом размере: ${i.left} шт.` : 'Это был последний в этом размере']),
     ]),
     '',
     quote

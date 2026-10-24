@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { orderTotals } from '../src/entities/order/model/pricing.ts'
 import { normalizeRuPhone, orderRequestSchema } from '../src/entities/order/model/schema.ts'
 import type { Order } from './order.ts'
+import { memoryStock, mergeStockLines } from './stock.ts'
 
 const ordersFile = join(mkdtempSync(join(tmpdir(), 'serafim-')), 'orders.jsonl')
 let app: typeof import('./app.ts').app
@@ -183,9 +184,9 @@ describe('POST /api/orders', () => {
     expect(Object.keys(fields)).toEqual(expect.arrayContaining(['name', 'phone', 'consent', 'offerAccepted']))
   })
 
-  it('rejects sold-out sizes and unknown products', async () => {
-    const soldOut = await post({ ...validOrder, items: [{ productId: 'p1', colorId: 'blue', size: 'L', qty: 1 }] }, '1.1.1.5')
-    expect(soldOut.status).toBe(409)
+  it('rejects sizes a product does not have and unknown products', async () => {
+    const noSize = await post({ ...validOrder, items: [{ productId: 'p5', colorId: 'black', size: 'M', qty: 1 }] }, '1.1.1.5')
+    expect(noSize.status).toBe(409)
     const unknown = await post({ ...validOrder, items: [{ productId: 'zzz', colorId: 'grey', size: 'M', qty: 1 }] }, '1.1.1.6')
     expect(unknown.status).toBe(409)
   })
@@ -449,6 +450,65 @@ describe('formatOrderMessage', () => {
   })
 })
 
+describe('stock', () => {
+  const ONLY_WAY_M = 'SRF/HD/ONLYWAY/GREY/M'
+  const makeApi = async (stock: Record<string, number>) => {
+    const { createApi } = await import('./api.ts')
+    const { deliveryFrom } = await import('./cdek.ts')
+    const saved: Order[] = []
+    const store = memoryStock(stock)
+    const api = createApi({
+      ...deliveryFrom({ CDEK_ENV: 'test' }),
+      siteOrigin: '',
+      telegram: { token: 'test', chatId: '1' },
+      clientIp: () => '8.8.8.8',
+      allowOrder: () => true,
+      saveOrder: async (o) => void saved.push(structuredClone(o)),
+      background: () => {},
+      ...store,
+    })
+    const order = (qty: number) =>
+      api.request('/api/orders', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...validOrder, items: [{ productId: 'p2', colorId: 'grey', size: 'M', qty }] }),
+      })
+    return { api, store, saved, order }
+  }
+
+  it('takes stock with each order and refuses more than is left', async () => {
+    const { api, store, saved, order } = await makeApi({ [ONLY_WAY_M]: 2 })
+    expect((await order(1)).status).toBe(201)
+    expect(saved.at(-1)!.items[0].left).toBe(1)
+
+    const tooMany = await order(2)
+    expect(tooMany.status).toBe(409)
+    expect(((await tooMany.json()) as { error: string }).error).toContain('осталось только 1 шт.')
+    expect((await store.stock())[ONLY_WAY_M]).toBe(1)
+
+    expect((await order(1)).status).toBe(201)
+    const soldOut = await order(1)
+    expect(soldOut.status).toBe(409)
+    expect(((await soldOut.json()) as { error: string }).error).toContain('закончился')
+
+    const res = await api.request('/api/stock')
+    expect(res.headers.get('cache-control')).toBe('no-store')
+    expect(await res.json()).toEqual({ left: { [ONLY_WAY_M]: 0 } })
+  }, 20_000)
+
+  it('does not limit items without a stock record', async () => {
+    const { order } = await makeApi({})
+    expect((await order(3)).status).toBe(201)
+  }, 20_000)
+
+  it('counts the same item from several cart lines together', () => {
+    expect(mergeStockLines([{ sku: 'A', qty: 1 }, { sku: 'B', qty: 1 }, { sku: 'A', qty: 2 }])).toEqual([
+      { sku: 'A', qty: 3 },
+      { sku: 'B', qty: 1 },
+    ])
+  })
+})
+
 describe('personal data minimisation', () => {
   const run = async (telegramOk: boolean) => {
     const { createApi } = await import('./api.ts')
@@ -468,6 +528,7 @@ describe('personal data minimisation', () => {
       allowOrder: () => true,
       saveOrder: async (o) => void saved.push(structuredClone(o)),
       background: (_c, task) => void tasks.push(task),
+      ...memoryStock(),
     })
     const res = await api.request('/api/orders', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(validOrder) })
     await Promise.all(tasks)

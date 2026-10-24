@@ -8,6 +8,7 @@ import { deliveryFrom } from './cdek.ts'
 import { config } from './config.ts'
 import { createRateLimiter } from './rateLimit.ts'
 import { CACHE_RULES } from './securityHeaders.ts'
+import { memoryStock } from './stock.ts'
 import { saveOrder } from './storage.ts'
 
 const allow = createRateLimiter(config.rateLimit)
@@ -37,6 +38,8 @@ export const app = createApi({
   clientIp,
   allowOrder: (ip) => allow(ip),
   saveOrder,
+  // Учёт остатков ведётся в D1 (Cloudflare); у Node-сервера размеры не ограничены.
+  ...memoryStock(),
 })
 
 // Продакшен: отдаём собранный фронтенд. Каждая страница — готовый HTML из пререндера (dist/<путь>/index.html,

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { MOCKUP_DISCLAIMER } from '@/entities/product/model/catalog'
 import { useSearchParams } from 'react-router'
 import { isColorSoldOut } from '@/entities/product/lib/availability'
+import { useStock } from '@/entities/product/model/stock'
 import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
 import { ColorSelect } from '@/entities/product/ui/ColorSelect'
@@ -23,6 +24,7 @@ export function ProductView({ product }: { product: Product }) {
   // ?color=… из адреса — только после гидратации: в готовом HTML страница товара собрана с основным цветом.
   const isClient = useIsClient()
   const { color, size, selectColor, selectSize } = useProductSelection(product, (isClient && params.get('color')) || undefined)
+  useStock((s) => s.left) // перерисовка, когда пришли остатки
   const colorSoldOut = isColorSoldOut(product, color)
   // «Купить на Авито»: ссылка на товар, иначе на профиль продавца, иначе кнопки нет.
   const avitoUrl = product.avitoUrl || site.avitoProfileUrl

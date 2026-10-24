@@ -108,7 +108,7 @@ export const products: Product[] = [
     category: 'sweatshirts',
     price: 3700,
     skuBase: 'SRF/RG/IWILL',
-    colorList: [{ id: 'blue', name: 'Синий', hex: '#2A3FD0', soldOut: ['L', 'XL'] }],
+    colorList: [{ id: 'blue', name: 'Синий', hex: '#2A3FD0' }],
     sizes: APPAREL_SIZES,
     measurements: [
       { size: 'S', length: 62, width: 48 },

@@ -3,6 +3,7 @@ import { createApi } from './api.ts'
 import { deliveryFrom, type DeliveryEnv } from './cdek.ts'
 import { ORDER_RATE_LIMIT, ORDER_RETENTION_DAYS, PERSONAL_DATA_RETENTION_DAYS } from './limits.ts'
 import type { Order } from './order.ts'
+import type { StockLine, StockResult } from './stock.ts'
 
 /*
  * Cloudflare Workers: статику (готовые страницы из пререндера, фото, шрифты) Cloudflare отдаёт сам —
@@ -15,6 +16,7 @@ interface D1PreparedStatement {
   bind(...values: unknown[]): D1PreparedStatement
   run(): Promise<unknown>
   first<T>(): Promise<T | null>
+  all<T>(): Promise<{ results: T[] }>
 }
 interface D1Database {
   prepare(query: string): D1PreparedStatement
@@ -59,6 +61,31 @@ function platformFor(env: Env) {
       )
         .bind(order.number, order.createdAt, JSON.stringify(order))
         .run()
+    },
+    async stock() {
+      const { results } = await env.DB.prepare('SELECT sku, qty FROM stock').all<{ sku: string; qty: number }>()
+      return Object.fromEntries(results.map((r) => [r.sku, r.qty]))
+    },
+    // Каждая строка списывается атомарно (UPDATE … WHERE qty >= ?), двух последних штук двум покупателям не продать.
+    // Если какой-то строки не хватило — уже списанное возвращаем.
+    async takeStock(lines: StockLine[]): Promise<StockResult> {
+      const taken: StockLine[] = []
+      const left: Record<string, number> = {}
+      for (const l of lines) {
+        const row = await env.DB.prepare('UPDATE stock SET qty = qty - ?2 WHERE sku = ?1 AND qty >= ?2 RETURNING qty')
+          .bind(l.sku, l.qty)
+          .first<{ qty: number }>()
+        if (row) {
+          taken.push(l)
+          left[l.sku] = row.qty
+          continue
+        }
+        const have = await env.DB.prepare('SELECT qty FROM stock WHERE sku = ?1').bind(l.sku).first<{ qty: number }>()
+        if (!have) continue // остаток этого артикула не ведётся
+        for (const t of taken) await env.DB.prepare('UPDATE stock SET qty = qty + ?2 WHERE sku = ?1').bind(t.sku, t.qty).run()
+        return { ok: false, sku: l.sku, left: have.qty }
+      }
+      return { ok: true, left }
     },
   }
 }

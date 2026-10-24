@@ -32,13 +32,14 @@ import {
 } from './order.ts'
 import { createRateLimiter } from './rateLimit.ts'
 import { SECURITY_HEADERS } from './securityHeaders.ts'
+import { mergeStockLines, type StockStore } from './stock.ts'
 import { formatOrderMessage, sendToTelegram, type TelegramConfig } from './telegram.ts'
 
 /*
  * API магазина без привязки к площадке. Что зависит от неё — хранение заказов, лимит, IP посетителя, фоновые задачи —
  * передаётся снаружи: Node-сервер (app.ts, Docker) пишет в файл, Cloudflare (worker.ts) — в базу D1.
  */
-export interface ApiPlatform {
+export interface ApiPlatform extends StockStore {
   /** Адрес сайта, например https://serafim.ru. Если задан — изменяющие запросы с другим Origin отклоняются. */
   siteOrigin: string
   telegram: TelegramConfig
@@ -149,6 +150,12 @@ export function createApi(platform: ApiPlatform): Hono {
     if (!allowLookup(rateLimitKey(platform.clientIp(c)))) return c.json<ApiError>({ error: 'Слишком много запросов' }, 429)
     if (!cdek) return deliveryUnavailable(c)
     await next()
+  })
+
+  // Остатки для сайта: размер с нулём — «нет в наличии», с малым остатком — «осталось N шт.». Без кеша: остаток меняется с каждым заказом.
+  app.get('/api/stock', async (c) => {
+    c.header('cache-control', 'no-store')
+    return c.json({ left: await platform.stock() })
   })
 
   app.get('/api/cdek/cities', async (c) => {
@@ -307,6 +314,18 @@ export function createApi(platform: ApiPlatform): Hono {
         cdekState.error = err instanceof CdekError ? err.message : 'СДЭК недоступен'
       }
     }
+
+    // Остаток списывается последним, когда заказ точно принимается (пункт выдачи проверен).
+    const taken = await platform.takeStock(mergeStockLines(items.map((i) => ({ sku: i.sku, qty: i.qty }))))
+    if (!taken.ok) {
+      const item = items.find((i) => i.sku === taken.sku)!
+      const what = `${item.name} (${item.color.toLowerCase()}, ${sizeLabel(item.size)})`
+      return c.json<ApiError>(
+        { error: taken.left ? `${what}: осталось только ${taken.left} шт. Уменьшите количество в корзине.` : `${what} закончился. Уберите его из корзины.` },
+        409,
+      )
+    }
+    for (const i of items) if (i.sku in taken.left) i.left = taken.left[i.sku]
 
     const order = createOrder(input, items, delivery, cdekState)
 

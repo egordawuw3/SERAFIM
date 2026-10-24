@@ -1,9 +1,11 @@
 import { isProductSoldOut } from '../lib/availability'
+import { useStock } from '../model/stock'
 import type { Product } from '../model/types'
 
 const badge = 'px-2.5 py-1 font-mono text-[9px] uppercase tracking-[0.14em]'
 
 export function ProductBadges({ product }: { product: Product }) {
+  useStock((s) => s.left) // перерисовка, когда пришли остатки
   const soldOut = isProductSoldOut(product)
   if (!product.isNew && !product.isPreorder && !soldOut) return null
   return (

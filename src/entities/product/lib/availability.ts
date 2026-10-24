@@ -1,7 +1,9 @@
+import { stockLeft } from '../model/stock'
 import type { Product, ProductColor, Size } from '../model/types'
 
+/** Размер можно заказать: не снят вручную (soldOut) и остаток с сервера не ноль. Компонентам — подписка useStock для перерисовки. */
 export const isSizeAvailable = (color: ProductColor, size: Size) =>
-  !color.soldOut?.includes(size)
+  !color.soldOut?.includes(size) && stockLeft(color, size) !== 0
 
 export const firstAvailableSize = (product: Product, color: ProductColor): Size | undefined =>
   product.sizes.find((s) => isSizeAvailable(color, s))

@@ -14,6 +14,8 @@ export interface OrderItem {
   price: number
   /** Артикул: ware_key в СДЭК. */
   sku: string
+  /** Сколько штук этого артикула осталось после заказа (если остаток ведётся) — для продавца в Telegram. */
+  left?: number
 }
 
 export interface OrderDelivery {
