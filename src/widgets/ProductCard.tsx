@@ -12,7 +12,7 @@ import { formatPrice } from '@/shared/lib/format'
 import { prefetch } from '@/shared/lib/prefetch'
 
 /** Ширина карточки в сетке каталога: 2 колонки на телефоне, 4 — от 1024 px. */
-const CATALOG_CARD_SIZES = '(min-width: 1024px) 23vw, 46vw'
+export const CATALOG_CARD_SIZES = '(min-width: 1024px) 23vw, 46vw'
 
 const canHover = () => typeof window !== 'undefined' && window.matchMedia('(hover: hover)').matches
 

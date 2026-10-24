@@ -20,6 +20,7 @@ import { plural } from '@/shared/lib/format'
 import { useIsClient } from '@/shared/lib/useIsClient'
 import { CheckOption, Dropdown } from '@/shared/ui/Dropdown'
 import { Select } from '@/shared/ui/Select'
+import { ComingSoonCard, COMING_SOON } from './ComingSoonCard'
 import { ProductCard } from './ProductCard'
 
 const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value])
@@ -178,6 +179,14 @@ export function Catalog() {
                 />
               </li>
             ))}
+            {/* Тизеры следующего дропа — в конце полного каталога, не среди результатов фильтра. */}
+            {!hasActiveFilters(filters) &&
+              visible.length === list.length &&
+              COMING_SOON.map((item) => (
+                <li key={`soon-${item.id}`}>
+                  <ComingSoonCard {...item} />
+                </li>
+              ))}
           </ul>
           {visible.length < list.length && (
             <div className="mt-16 flex flex-col items-center gap-3 font-mono text-[12px]">
