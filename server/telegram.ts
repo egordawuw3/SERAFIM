@@ -36,7 +36,7 @@ const prettyPhone = (phone: string) => {
  * Сообщение продавцу: блоки через пустую строку — товары, суммы, пункт выдачи, покупатель, СДЭК.
  * Только жирные подзаголовки, без лишнего оформления; всё, что ввёл покупатель, экранируется.
  */
-export function formatOrderMessage(order: Order): string {
+export function formatOrderMessage(order: Order, { withCustomer = true } = {}): string {
   const { customer: c, items, delivery, totals } = order
   const quote = delivery.quote
   const country = order.country && order.country !== 'RU' ? `${COUNTRIES[order.country].name}, ` : ''
@@ -70,12 +70,16 @@ export function formatOrderMessage(order: Order): string {
     '',
     '<b>Пункт выдачи</b>',
     point,
-    '',
-    '<b>Покупатель</b>',
-    escapeHtml(c.name),
-    escapeHtml(prettyPhone(c.phone)),
-    c.telegram ? `@${escapeHtml(c.telegram)}` : null,
-    c.comment ? `Комментарий: ${escapeHtml(c.comment)}` : null,
+    ...(withCustomer
+      ? [
+          '',
+          '<b>Покупатель</b>',
+          escapeHtml(c.name),
+          escapeHtml(prettyPhone(c.phone)),
+          c.telegram ? `@${escapeHtml(c.telegram)}` : null,
+          c.comment ? `Комментарий: ${escapeHtml(c.comment)}` : null,
+        ]
+      : []),
     '',
     cdekLine(order),
   ]

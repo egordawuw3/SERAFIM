@@ -267,6 +267,12 @@ export function createApi(platform: ApiPlatform): Hono {
       } catch (err) {
         console.error(`[orders] ${order.number}: не удалось отправить в Telegram`, err)
       }
+      // Помощникам (TELEGRAM_ADMIN_IDS) — копия без покупателя: его данные получает только продавец (согласие на обработку).
+      for (const id of (platform.telegram.adminIds ?? '').split(',').map((s) => s.trim()).filter(Boolean)) {
+        await sendToTelegram(formatOrderMessage(anonymize(order), { withCustomer: false }), { ...platform.telegram, chatId: id }).catch((err) =>
+          console.error(`[orders] ${order.number}: копия помощнику не отправлена`, err),
+        )
+      }
     }
     // Заказ у СДЭК и у продавца — персональные данные на сервере сайта больше не нужны. Сбойные заказы остаются
     // с данными для ручного оформления и обезличиваются ежедневной чисткой через PERSONAL_DATA_RETENTION_DAYS.

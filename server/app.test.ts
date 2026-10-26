@@ -452,6 +452,13 @@ describe('formatOrderMessage', () => {
     cdek: { status: 'created', env: 'prod', uuid: 'u', number: '1234567890' },
   }
 
+  it('copy for helpers has no buyer details', async () => {
+    const { formatOrderMessage } = await import('./telegram.ts')
+    const text = formatOrderMessage({ ...base, customer: { ...base.customer, telegram: 'ivan_petrov' } }, { withCustomer: false })
+    expect(text).not.toMatch(/Покупатель|Иван|999|ivan_petrov/)
+    expect(text).toContain('Итого')
+  })
+
   it('lists items, delivery, total, pickup point, buyer and CDEK number in separate blocks', async () => {
     const { formatOrderMessage } = await import('./telegram.ts')
     const text = formatOrderMessage({ ...base, customer: { ...base.customer, telegram: 'ivan_petrov' } })
