@@ -21,6 +21,8 @@ export interface PickupPoint {
   workTime: string
   lat: number
   lon: number
+  /** Есть примерочная. */
+  fitting: boolean
 }
 
 export interface DeliveryQuote {

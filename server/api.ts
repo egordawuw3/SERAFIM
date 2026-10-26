@@ -337,7 +337,12 @@ export function createApi(platform: ApiPlatform): Hono {
       )
 
     const manual = input.pointCode === MANUAL_POINT
-    const delivery: OrderDelivery = { cityCode: input.cityCode, pointCode: input.pointCode, ...(manual ? { note: input.deliveryNote } : {}) }
+    const delivery: OrderDelivery = {
+      cityCode: input.cityCode,
+      pointCode: input.pointCode,
+      ...(manual ? { note: input.deliveryNote } : {}),
+      ...(input.tryOn ? { tryOn: { fee: site.shipping.tryOn.fee } } : {}),
+    }
     let cdekState: OrderCdek = manual
       ? { status: 'failed', env: cdek?.env, error: 'пункт выдачи не выбран на сайте — покупатель указал его сам' }
       : { status: 'off' }
@@ -353,6 +358,9 @@ export function createApi(platform: ApiPlatform): Hono {
         const point = await pointCache(input.pointCode, () => cdek.point(input.pointCode))
         if (!point || point.cityCode !== input.cityCode || point.countryCode !== input.country) {
           return c.json<ApiError>({ error: 'Проверьте поля формы', fields: { pointCode: 'Пункт выдачи не найден — выберите другой' } }, 400)
+        }
+        if (input.tryOn && !point.fitting) {
+          return c.json<ApiError>({ error: 'Проверьте поля формы', fields: { pointCode: 'В этом пункте нет примерочной — выберите другой' } }, 400)
         }
         delivery.point = { city: point.city, address: point.address, name: point.name, workTime: point.workTime }
         delivery.quote = await quoteFor(lines, input.cityCode)
@@ -401,6 +409,7 @@ export function createApi(platform: ApiPlatform): Hono {
           })),
           pkg: packageFor(lines),
           deliveryCost: cod.delivery,
+          tryOn: input.tryOn,
           prepaid: order.totals.prepayment,
         })
         order.cdek = { status: 'created', env: cdek.env, uuid }

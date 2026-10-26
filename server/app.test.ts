@@ -15,17 +15,19 @@ let app: typeof import('./app.ts').app
  */
 let cdekMode: 'ok' | 'down' | 'timeout' | 'lookup-down' = 'ok'
 const cdekOrders: unknown[] = []
-const point = (code: string, cityCode: number, city: string, address: string, country = 'RU') => ({
+const point = (code: string, cityCode: number, city: string, address: string, country = 'RU', fitting = true) => ({
   code,
   name: `${code}, ${city}`,
   work_time: 'Пн-Вс 10:00-20:00',
   allowed_cod: true,
   is_handout: true,
+  is_dressing_room: fitting,
   location: { country_code: country, city_code: cityCode, city, address, latitude: 55.7, longitude: 49.1 },
 })
 const POINTS: Record<string, ReturnType<typeof point>> = {
   MSK65: point('MSK65', 44, 'Москва', 'ул. Динамовская, 1А'),
   KZN3: point('KZN3', 424, 'Казань', 'ул. Спартаковская, 2'),
+  KZN9: point('KZN9', 424, 'Казань', 'ул. Баумана, 9', 'RU', false),
   ALM1: point('ALM1', 4756, 'Алматы', 'пр. Абая, 1', 'KZ'),
   MNS1: point('MNS1', 9220, 'Минск', 'пр. Независимости, 1', 'BY'),
 }
@@ -188,6 +190,22 @@ describe('POST /api/orders', () => {
     expect(Object.keys(fields)).toEqual(expect.arrayContaining(['name', 'phone', 'consent', 'offerAccepted']))
   })
 
+  it('try-on: fee added to delivery, CDEK fitting and partial buyout, only points with a fitting room', async () => {
+    const res = await post({ ...validOrder, tryOn: true }, '1.2.0.6')
+    expect(res.status).toBe(201)
+    // 4 200 + 311 доставки + 400 примерка.
+    expect(await res.json()).toMatchObject({ total: 4911 })
+    const sent = cdekOrders.at(-1) as { services?: { code: string }[]; delivery_recipient_cost: { value: number } }
+    expect(sent.services).toEqual([{ code: 'TRYING_ON' }, { code: 'PART_DELIV' }])
+    expect(sent.delivery_recipient_cost.value).toBe(711)
+    expect(lastSaved().delivery.tryOn).toEqual({ fee: 400 })
+
+    const noRoom = await post({ ...validOrder, tryOn: true, pointCode: 'KZN9' }, '1.2.0.7')
+    expect(((await noRoom.json()) as { fields: Record<string, string> }).fields.pointCode).toContain('примерочной')
+    const abroad = await post({ ...validOrder, tryOn: true, country: 'KZ', cityCode: 4756, pointCode: 'ALM1', phone: '+7 701 123 45 67' }, '1.2.0.8')
+    expect(abroad.status).toBe(400)
+  })
+
   it('Kazakhstan: cash on delivery in tenge at the central bank rate plus margin', async () => {
     const kz = { ...validOrder, country: 'KZ', cityCode: 4756, pointCode: 'ALM1', phone: '+7 701 123 45 67' }
     const res = await post(kz, '1.2.0.1')
@@ -263,7 +281,10 @@ describe('CDEK lookups', () => {
     expect(cities.cities[0].code).toBe(424)
 
     const points = (await (await get('/api/cdek/points?city=424')).json()) as { points: { code: string; address: string }[] }
-    expect(points.points).toEqual([expect.objectContaining({ code: 'KZN3', address: 'ул. Спартаковская, 2' })])
+    expect(points.points).toEqual([
+      expect.objectContaining({ code: 'KZN3', address: 'ул. Спартаковская, 2', fitting: true }),
+      expect.objectContaining({ code: 'KZN9', fitting: false }),
+    ])
 
     const quote = (await (await get('/api/cdek/quote?items=p2:1&city=424')).json()) as {
       quote: { sum: number; periodMin: number }

@@ -57,6 +57,8 @@ export interface CdekPoint {
   code: string
   /** Страна пункта (RU, KZ, BY…). */
   countryCode: string
+  /** Есть примерочная — можно заказать с примеркой. */
+  fitting: boolean
   name: string
   cityCode: number
   city: string
@@ -94,6 +96,8 @@ export interface CdekOrderInput {
   pkg: CdekPackage
   /** Сколько покупатель платит за доставку при получении — в валюте страны получателя. */
   deliveryCost: number
+  /** Примерка в пункте выдачи с частичным выкупом: покупатель оплачивает только то, что забрал. */
+  tryOn?: boolean
   /** Сколько покупатель уже оплатил заранее, ₽ (вычитается из наложенного платежа за товар пропорционально). */
   prepaid: number
 }
@@ -124,6 +128,7 @@ export function buildCdekOrder(o: CdekOrderInput) {
     shipment_point: o.shipmentPoint,
     delivery_point: o.deliveryPoint,
     delivery_recipient_cost: { value: o.deliveryCost },
+    ...(o.tryOn ? { services: [{ code: 'TRYING_ON' }, { code: 'PART_DELIV' }] } : {}),
     sender: { name: o.sender.name, phones: [{ number: o.sender.phone }] },
     recipient: { name: o.recipient.name, phones: [{ number: o.recipient.phone }] },
     packages: [
@@ -271,12 +276,14 @@ interface RawPoint {
   work_time?: string
   allowed_cod?: boolean
   is_handout?: boolean
+  is_dressing_room?: boolean
   location: { country_code?: string; city_code: number; city: string; address?: string; address_full?: string; latitude: number; longitude: number }
 }
 
 const toPoint = (p: RawPoint): CdekPoint => ({
   code: p.code,
   countryCode: p.location.country_code ?? 'RU',
+  fitting: p.is_dressing_room === true,
   name: p.name ?? p.code,
   cityCode: p.location.city_code,
   city: p.location.city,

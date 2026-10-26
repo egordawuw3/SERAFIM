@@ -23,6 +23,8 @@ export const orderRequestSchema = z.object({
   items: z.array(orderItemSchema).min(1, 'Корзина пуста').max(30),
   /** Страна доставки; старые версии сайта её не присылают — значит, Россия. */
   country: z.enum(COUNTRY_CODES).default('RU'),
+  /** Примерка в пункте выдачи с частичным выкупом — только по России (site.shipping.tryOn). */
+  tryOn: z.boolean().default(false),
   cityCode: z.number({ error: 'Выберите город' }).int().min(0),
   /** Код ПВЗ СДЭК или MANUAL_POINT, если СДЭК не ответил и покупатель описал пункт сам (deliveryNote). */
   pointCode: z
@@ -59,6 +61,9 @@ export const orderRequestSchema = z.object({
     if (v.deliveryNote.length < 5) ctx.addIssue({ code: 'custom', path: ['deliveryNote'], message: 'Напишите город и адрес удобного пункта СДЭК' })
   } else if (v.cityCode <= 0) {
     ctx.addIssue({ code: 'custom', path: ['cityCode'], message: 'Выберите город' })
+  }
+  if (v.tryOn && v.country !== 'RU') {
+    ctx.addIssue({ code: 'custom', path: ['form'], message: 'Примерка доступна только при доставке по России' })
   }
   if (!normalizePhone(v.phone, v.country)) {
     ctx.addIssue({ code: 'custom', path: ['phone'], message: `Укажите номер: ${COUNTRIES[v.country].phoneExample}` })

@@ -28,6 +28,8 @@ export interface OrderDelivery {
   quote?: CdekQuote
   /** Пункт, описанный покупателем вручную (СДЭК не ответил при оформлении). */
   note?: string
+  /** Примерка в пункте выдачи: fee ₽ добавлен к доставке. */
+  tryOn?: { fee: number }
 }
 
 export interface OrderCdek {
@@ -176,7 +178,7 @@ export function createOrder(
   const at = now.toISOString()
   const totals = orderTotals(
     items.reduce((sum, i) => sum + i.price * i.qty, 0),
-    delivery.quote?.sum ?? 0,
+    (delivery.quote?.sum ?? 0) + (delivery.tryOn?.fee ?? 0),
     site.shipping.prepaymentAmount,
   )
   const payment = orderPayment(input.country, items, totals, kztRate)

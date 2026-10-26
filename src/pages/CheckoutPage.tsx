@@ -86,6 +86,8 @@ export function CheckoutPage() {
   const [quoteFor, setQuoteFor] = useState<{ key: string; quote: DeliveryQuote | null; payment?: OrderPayment } | null>(null)
   // СДЭК не ответил — покупатель описывает пункт сам.
   const [manual, setManual] = useState(false)
+  // Примерка в пункте выдачи (только Россия): доплата к доставке, в списке — только пункты с примерочной.
+  const [tryOn, setTryOn] = useState(false)
   const [deliveryNote, setDeliveryNote] = useState('')
 
   const [name, setName] = useState('')
@@ -137,7 +139,8 @@ export function CheckoutPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [city, quoteKey])
 
-  const points = city && pointsFor?.city === city.code ? pointsFor.points : null
+  const allPoints = city && pointsFor?.city === city.code ? pointsFor.points : null
+  const points = tryOn && allPoints ? allPoints.filter((p) => p.fitting) : allPoints
   const quoteLoading = quoteKey !== null && quoteFor?.key !== quoteKey
   const quote = !quoteLoading && quoteFor ? quoteFor.quote : null
   const payment = !quoteLoading ? quoteFor?.payment : undefined
@@ -149,6 +152,7 @@ export function CheckoutPage() {
     setCity(null)
     setPointCode(null)
     setManual(false)
+    setTryOn(false)
     // У Беларуси другой формат номера — набранный под +7 номер там не подойдёт, и наоборот.
     if (next === 'BY' || country === 'BY') setPhone('')
     setErrors({})
@@ -170,7 +174,9 @@ export function CheckoutPage() {
     )
   }
 
-  const totals = orderTotals(subtotal(items), quote?.sum ?? 0, site.shipping.prepaymentAmount)
+  const tryOnFee = tryOn ? site.shipping.tryOn.fee : 0
+  const deliverySum = quote ? quote.sum + tryOnFee : 0
+  const totals = orderTotals(subtotal(items), deliverySum, site.shipping.prepaymentAmount)
   const selectedPoint = points?.find((p) => p.code === pointCode) ?? null
 
   async function onSubmit(e: FormEvent) {
@@ -180,6 +186,7 @@ export function CheckoutPage() {
     const payload: OrderRequest = {
       items: items.map(({ productId, colorId, size, qty }) => ({ productId, colorId, size, qty })),
       country,
+      tryOn,
       cityCode: manual ? 0 : (city?.code ?? 0),
       pointCode: manual ? MANUAL_POINT : (pointCode ?? ''),
       deliveryNote: manual ? deliveryNote : '',
@@ -324,9 +331,30 @@ export function CheckoutPage() {
                     clearError('cityCode')
                   }}
                 />
+                {country === 'RU' && (
+                  <label className="flex min-h-11 cursor-pointer items-start gap-3 leading-relaxed">
+                    <input
+                      type="checkbox"
+                      checked={tryOn}
+                      onChange={(e) => {
+                        setTryOn(e.target.checked)
+                        // Выбранный пункт без примерочной больше не подходит.
+                        if (e.target.checked && pointCode && !allPoints?.find((p) => p.code === pointCode)?.fitting) setPointCode(null)
+                      }}
+                      className="mt-0.5 h-4 w-4 shrink-0 accent-ink"
+                    />
+                    <span>
+                      Примерка в пункте выдачи (+{formatPrice(site.shipping.tryOn.fee)})
+                      <span className="block text-[11px] text-ink/70">
+                        Примерьте и оплатите только то, что подошло, — например, закажите два размера.
+                      </span>
+                    </span>
+                  </label>
+                )}
                 {city && (
                   <PointPicker
                     points={points}
+                    emptyText={tryOn ? 'В этом городе нет пунктов СДЭК с примерочной. Снимите примерку или выберите соседний город.' : undefined}
                     selected={pointCode}
                     error={errors.pointCode}
                     onSelect={(code) => {
@@ -340,7 +368,7 @@ export function CheckoutPage() {
                     {quoteLoading
                       ? 'Считаем доставку…'
                       : quote
-                        ? `Доставка: ${formatPrice(quote.sum)}, ${periodText(quote)}${payment?.currency === 'KZT' ? ` · при получении ${formatTenge(payment.amount)}` : ''}`
+                        ? `Доставка: ${formatPrice(deliverySum)}${tryOn ? ' с примеркой' : ''}, ${periodText(quote)}${payment?.currency === 'KZT' ? ` · при получении ${formatTenge(payment.amount)}` : ''}`
                         : 'Стоимость доставки уточним после оформления'}
                   </p>
                 )}
@@ -414,7 +442,7 @@ export function CheckoutPage() {
           <p className="mb-5 uppercase tracking-[0.12em]">Ваш заказ</p>
           <dl className="space-y-2 border-b border-ink/10 pb-5">
             <Row label={`Товары · ${countItems(items)} шт.`} value={formatPrice(totals.goods)} />
-            <Row label="Доставка СДЭК" value={quote ? formatPrice(quote.sum) : '—'} />
+            <Row label={tryOn ? 'Доставка СДЭК с примеркой' : 'Доставка СДЭК'} value={quote ? formatPrice(deliverySum) : '—'} />
             {selectedPoint && <p className="text-[11px] leading-relaxed text-ink/70">Пункт: {selectedPoint.address}</p>}
           </dl>
           <div className="flex justify-between pt-5 text-[14px]">
@@ -653,9 +681,11 @@ function PointPicker({
   points,
   selected,
   error,
+  emptyText = 'В этом городе нет пунктов СДЭК с оплатой при получении. Выберите соседний город.',
   onSelect,
 }: {
   points: PickupPoint[] | null
+  emptyText?: string
   selected: string | null
   error?: string
   onSelect: (code: string) => void
@@ -674,7 +704,7 @@ function PointPicker({
   }
 
   if (points === null) return <p className="text-ink/70">Загружаем пункты выдачи…</p>
-  if (points.length === 0) return <p className="text-ink/70">В этом городе нет пунктов СДЭК с оплатой при получении. Выберите соседний город.</p>
+  if (points.length === 0) return <p className="text-ink/70">{emptyText}</p>
 
   return (
     <div className="space-y-3">
