@@ -174,7 +174,7 @@ export function CheckoutPage() {
     )
   }
 
-  const tryOnFee = tryOn ? site.shipping.tryOn.fee : 0
+  const tryOnFee = tryOn && !manual ? site.shipping.tryOn.fee : 0
   const deliverySum = quote ? quote.sum + tryOnFee : 0
   const totals = orderTotals(subtotal(items), deliverySum, site.shipping.prepaymentAmount)
   const selectedPoint = points?.find((p) => p.code === pointCode) ?? null
@@ -186,7 +186,8 @@ export function CheckoutPage() {
     const payload: OrderRequest = {
       items: items.map(({ productId, colorId, size, qty }) => ({ productId, colorId, size, qty })),
       country,
-      tryOn,
+      // В ручном режиме пункт не выбран на сайте — примерку (пункт с примерочной) не проверить.
+      tryOn: tryOn && !manual,
       cityCode: manual ? 0 : (city?.code ?? 0),
       pointCode: manual ? MANUAL_POINT : (pointCode ?? ''),
       deliveryNote: manual ? deliveryNote : '',

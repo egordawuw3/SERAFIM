@@ -209,7 +209,8 @@ export class CdekClient {
   async suggestCities(name: string, countryCode = 'RU'): Promise<CdekCity[]> {
     const q = new URLSearchParams({ name, country_code: countryCode })
     const list = await this.request<{ code: number; full_name: string }[]>('GET', `/location/suggest/cities?${q}`)
-    return list.slice(0, 10).map((c) => ({ code: c.code, name: c.full_name }))
+    // Страна в конце названия («…, Россия») лишняя — она уже выбрана на сайте, а длинное название не помещается в поле.
+    return list.slice(0, 10).map((c) => ({ code: c.code, name: c.full_name.replace(/,\s*(Россия|Казахстан|Белоруссия \(Беларусь\)|Беларусь)\s*$/, '') }))
   }
 
   /** Пункты выдачи города; cod — только те, где можно оплатить при получении (не нужно при предоплате). */
