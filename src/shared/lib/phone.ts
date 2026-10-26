@@ -7,7 +7,9 @@ export function formatPhoneInput(value: string, country: 'RU' | 'KZ' | 'BY' = 'R
   let digits = value.replace(/\D/g, '')
   if (!digits) return ''
   if (country === 'BY') return formatBelarus(digits)
-  if (digits.startsWith('8')) digits = `7${digits.slice(1)}`
+  // Казахстан: номер без кода страны тоже начинается с 7 (701…, 747…). Код страны — только если дальше 7 или 6 (+7 7xx, +7 6xx).
+  if (country === 'KZ' && digits.startsWith('7') && digits.length > 1 && !'67'.includes(digits[1])) digits = `7${digits}`
+  else if (digits.startsWith('8')) digits = `7${digits.slice(1)}`
   else if (!digits.startsWith('7')) digits = `7${digits}`
   const d = digits.slice(1, 11)
   let out = '+7'
