@@ -94,6 +94,8 @@ export function CheckoutPage() {
   const [phone, setPhone] = useState('')
   const [telegram, setTelegram] = useState('')
   const [comment, setComment] = useState('')
+  // Ник и комментарий необязательны — свёрнуты под ссылкой (для Беларуси ник нужен — открыты сразу).
+  const [extraOpened, setExtraOpened] = useState(false)
   const [offerAccepted, setOfferAccepted] = useState(false)
   const [consent, setConsent] = useState(false)
   const [honeypot, setHoneypot] = useState('')
@@ -101,6 +103,17 @@ export function CheckoutPage() {
   const [submitting, setSubmitting] = useState(false)
   // Защита от двойного нажатия: состояние React обновится только после перерисовки, а флаг — сразу.
   const submittingRef = useRef(false)
+
+  // Блок «Ваш заказ» на экране или выше — нижняя панель с итогом на телефоне больше не нужна (и не закрывает футер).
+  const summaryRef = useRef<HTMLElement>(null)
+  const [summaryVisible, setSummaryVisible] = useState(false)
+  useEffect(() => {
+    const el = summaryRef.current
+    if (!el) return
+    const io = new IntersectionObserver(([e]) => setSummaryVisible(e.isIntersecting || e.boundingClientRect.top < 0), { rootMargin: '0px 0px -80px 0px' })
+    io.observe(el)
+    return () => io.disconnect()
+  })
 
   const clearError = (key: FieldKey) => setErrors((e) => (e[key] ? { ...e, [key]: undefined } : e))
 
@@ -145,6 +158,7 @@ export function CheckoutPage() {
   const quote = !quoteLoading && quoteFor ? quoteFor.quote : null
   const payment = !quoteLoading ? quoteFor?.payment : undefined
   const prepay = COUNTRIES[country].payment === 'prepay'
+  const showExtra = extraOpened || prepay || Boolean(telegram || comment || errors.telegram || errors.comment)
 
   const changeCountry = (next: CountryCode) => {
     if (next === country) return
@@ -238,7 +252,7 @@ export function CheckoutPage() {
   }
 
   return (
-    <section className="w-full px-4 pb-24 pt-6 md:px-12 md:pt-10">
+    <section className="w-full px-4 pb-32 pt-6 md:px-12 md:pt-10 lg:pb-24">
       <h1 className="mb-8 border-b border-ink/10 pb-6 text-3xl font-light uppercase tracking-widest md:mb-12 md:text-4xl">
         Оформление заказа
       </h1>
@@ -247,7 +261,7 @@ export function CheckoutPage() {
         <div className="min-w-0 max-w-2xl space-y-12">
           {/* Товары */}
           <fieldset className="min-w-0 space-y-4">
-            <legend className="mb-5 uppercase tracking-[0.12em]">Товары</legend>
+            <StepTitle n={1}>Товары</StepTitle>
             <ul className="divide-y divide-ink/10">
               {items.map((i) => {
                 const key = itemKey(i)
@@ -275,7 +289,7 @@ export function CheckoutPage() {
           </fieldset>
           {/* Доставка */}
           <fieldset className="min-w-0 space-y-5">
-            <legend className="mb-5 uppercase tracking-[0.12em]">Доставка СДЭК до пункта выдачи</legend>
+            <StepTitle n={2}>Доставка СДЭК до пункта выдачи</StepTitle>
             <div role="radiogroup" aria-label="Страна доставки" className="flex flex-wrap gap-2">
               {COUNTRY_CODES.map((code) => (
                 <button
@@ -365,7 +379,7 @@ export function CheckoutPage() {
                   />
                 )}
                 {city && (
-                  <p className="text-ink/85" aria-live="polite">
+                  <p className="rounded-lg border border-ink/10 bg-white px-4 py-3 text-ink" aria-live="polite">
                     {quoteLoading
                       ? 'Считаем доставку…'
                       : quote
@@ -379,7 +393,7 @@ export function CheckoutPage() {
 
           {/* Получатель */}
           <fieldset className="min-w-0 space-y-5">
-            <legend className="mb-5 uppercase tracking-[0.12em]">Получатель</legend>
+            <StepTitle n={3}>Получатель</StepTitle>
             <Field label="Имя и фамилия" hint="Как в паспорте — СДЭК выдаёт посылку по документу" error={errors.name}>
               <Input
                 autoComplete="name"
@@ -405,25 +419,33 @@ export function CheckoutPage() {
                 invalid={!!errors.phone}
               />
             </Field>
-            <Field
-              label={prepay ? 'Ник в Telegram' : 'Ник в Telegram (необязательно)'}
-              hint={prepay ? 'Сюда продавец напишет про оплату' : undefined}
-              error={errors.telegram}
-            >
-              <Input
-                placeholder="@username"
-                autoCapitalize="off"
-                value={telegram}
-                onChange={(e) => {
-                  setTelegram(e.target.value)
-                  clearError('telegram')
-                }}
-                invalid={!!errors.telegram}
-              />
-            </Field>
-            <Field label="Комментарий (необязательно)" error={errors.comment}>
-              <Textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} invalid={!!errors.comment} />
-            </Field>
+            {showExtra ? (
+              <>
+                <Field
+                  label={prepay ? 'Ник в Telegram' : 'Ник в Telegram (необязательно)'}
+                  hint={prepay ? 'Сюда продавец напишет про оплату' : undefined}
+                  error={errors.telegram}
+                >
+                  <Input
+                    placeholder="@username"
+                    autoCapitalize="off"
+                    value={telegram}
+                    onChange={(e) => {
+                      setTelegram(e.target.value)
+                      clearError('telegram')
+                    }}
+                    invalid={!!errors.telegram}
+                  />
+                </Field>
+                <Field label="Комментарий (необязательно)" error={errors.comment}>
+                  <Textarea rows={3} value={comment} onChange={(e) => setComment(e.target.value)} invalid={!!errors.comment} />
+                </Field>
+              </>
+            ) : (
+              <button type="button" onClick={() => setExtraOpened(true)} className="tap-target text-ink/70 underline underline-offset-4 hover:text-ink">
+                + Ник в Telegram или комментарий
+              </button>
+            )}
 
             {/* Ловушка для ботов: поле скрыто от людей и от скринридеров. */}
             <input
@@ -439,8 +461,10 @@ export function CheckoutPage() {
           </fieldset>
         </div>
 
-        <aside className="h-fit rounded-lg bg-white p-6 lg:sticky lg:top-24">
-          <p className="mb-5 uppercase tracking-[0.12em]">Ваш заказ</p>
+        <aside id="checkout-summary" ref={summaryRef} className="h-fit scroll-mt-24 rounded-lg bg-white p-6 lg:sticky lg:top-24">
+          <p className="mb-5 flex items-baseline gap-3 uppercase tracking-[0.12em]">
+            <span className="text-ink/40">04</span>Ваш заказ
+          </p>
           <dl className="space-y-2 border-b border-ink/10 pb-5">
             <Row label={`Товары · ${countItems(items)} шт.`} value={formatPrice(totals.goods)} />
             <Row label={tryOn ? 'Доставка СДЭК с примеркой' : 'Доставка СДЭК'} value={quote ? formatPrice(deliverySum) : '—'} />
@@ -508,6 +532,25 @@ export function CheckoutPage() {
           </button>
         </aside>
       </form>
+
+      {/* Телефон: итог и переход к подтверждению под рукой, пока блок «Ваш заказ» ниже экрана. */}
+      {!summaryVisible && (
+        <div className="fixed inset-x-0 bottom-0 z-30 border-t border-ink/10 bg-paper/95 px-4 pb-[max(0.75rem,env(safe-area-inset-bottom))] pt-3 font-mono backdrop-blur lg:hidden">
+          <div className="flex items-center justify-between gap-4">
+            <div className="text-[11px] leading-tight text-ink/70">
+              Итого
+              <span className="block text-[16px] text-ink">{formatPrice(totals.total)}</span>
+            </div>
+            <button
+              type="button"
+              onClick={() => summaryRef.current?.scrollIntoView({ behavior: 'smooth', block: 'start' })}
+              className="h-11 rounded-lg bg-ink px-5 text-[11px] uppercase tracking-[0.15em] text-paper"
+            >
+              К подтверждению
+            </button>
+          </div>
+        </div>
+      )}
     </section>
   )
 }
@@ -533,6 +576,16 @@ function periodText(q: DeliveryQuote): string {
   return q.periodMin && q.periodMin !== q.periodMax
     ? `${q.periodMin}–${q.periodMax} ${plural(q.periodMax)}`
     : `${q.periodMax} ${plural(q.periodMax)}`
+}
+
+/** Заголовок шага: номер + название — порядок оформления виден сразу. */
+function StepTitle({ n, children }: { n: number; children: ReactNode }) {
+  return (
+    <legend className="mb-5 flex items-baseline gap-3 uppercase tracking-[0.12em]">
+      <span className="text-ink/40">{String(n).padStart(2, '0')}</span>
+      {children}
+    </legend>
+  )
 }
 
 function Row({ label, value }: { label: string; value: string }) {
@@ -693,6 +746,9 @@ function PointPicker({
 }) {
   const name = useId()
   const [search, setSearch] = useState('')
+  // Пункт выбран — список и карта сворачиваются в карточку с кнопкой «Изменить»: страница не растягивается на 20 адресов.
+  const [editing, setEditing] = useState(false)
+  const chosen = points?.find((p) => p.code === selected)
   const listRef = useRef<HTMLDivElement>(null)
   const filtered = useMemo(() => {
     const q = search.trim().toLowerCase()
@@ -701,10 +757,25 @@ function PointPicker({
 
   const select = (code: string) => {
     onSelect(code)
+    setEditing(false)
     listRef.current?.querySelector(`[data-code="${CSS.escape(code)}"]`)?.scrollIntoView({ block: 'nearest', behavior: 'smooth' })
   }
 
   if (points === null) return <p className="text-ink/70">Загружаем пункты выдачи…</p>
+  if (chosen && !editing) {
+    return (
+      <div className="flex items-start justify-between gap-4 rounded-lg border border-ink bg-white px-4 py-3 leading-snug">
+        <div className="min-w-0">
+          <p className="text-[11px] uppercase tracking-[0.12em] text-ink/70">Пункт выдачи</p>
+          <p className="mt-1 text-ink">{chosen.address}</p>
+          {chosen.workTime && <p className="mt-0.5 text-[11px] text-ink/70">{chosen.workTime}</p>}
+        </div>
+        <button type="button" onClick={() => setEditing(true)} className="tap-target shrink-0 text-ink/70 underline underline-offset-4 hover:text-ink">
+          Изменить
+        </button>
+      </div>
+    )
+  }
   if (points.length === 0) return <p className="text-ink/70">{emptyText}</p>
 
   return (
