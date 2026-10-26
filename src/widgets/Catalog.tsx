@@ -20,7 +20,8 @@ import { plural } from '@/shared/lib/format'
 import { useIsClient } from '@/shared/lib/useIsClient'
 import { CheckOption, Dropdown } from '@/shared/ui/Dropdown'
 import { Select } from '@/shared/ui/Select'
-import { ComingSoonCard, COMING_SOON } from './ComingSoonCard'
+import { ComingSoonCard } from './ComingSoonCard'
+import { COMING_SOON } from './comingSoon'
 import { ProductCard } from './ProductCard'
 
 const toggle = <T,>(list: T[], value: T) => (list.includes(value) ? list.filter((v) => v !== value) : [...list, value])

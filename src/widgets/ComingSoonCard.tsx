@@ -1,3 +1,4 @@
+import type { COMING_SOON } from './comingSoon'
 import { CATALOG_CARD_SIZES } from './ProductCard'
 
 /*
@@ -5,12 +6,6 @@ import { CATALOG_CARD_SIZES } from './ProductCard'
  * Картинки — public/images/soon/<id>-480|800.avif|webp (исходники в photos/soon/, кадр 4:5).
  * Когда вещь выходит, её убирают отсюда и добавляют в каталог как обычный товар.
  */
-export const COMING_SOON = [
-  { id: 'tshirt', alt: 'Новая футболка — скоро' },
-  { id: 'hoodie', alt: 'Новое худи — скоро' },
-  { id: 'rugby', alt: 'Новая регбийка — скоро' },
-] as const
-
 const srcSet = (id: string, ext: string) => [480, 800].map((w) => `/images/soon/${id}-${w}.${ext} ${w}w`).join(', ')
 
 export function ComingSoonCard({ id, alt }: (typeof COMING_SOON)[number]) {

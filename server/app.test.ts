@@ -278,7 +278,7 @@ describe('CDEK lookups', () => {
     const citiesRes = await get(`/api/cdek/cities?q=${encodeURIComponent('Казан')}`)
     const cities = (await citiesRes.json()) as { cities: { code: number }[] }
     expect(citiesRes.status, JSON.stringify(cities)).toBe(200)
-    expect((cities as { cities: { name: string }[] }).cities[0].name).toBe('Казань, Татарстан')
+    expect((cities as unknown as { cities: { name: string }[] }).cities[0].name).toBe('Казань, Татарстан')
     expect(cities.cities[0].code).toBe(424)
 
     const points = (await (await get('/api/cdek/points?city=424')).json()) as { points: { code: string; address: string }[] }
