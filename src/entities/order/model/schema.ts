@@ -45,7 +45,7 @@ export const orderRequestSchema = z.object({
     .trim()
     .max(64)
     .transform((v) => v.replace(/^https?:\/\/t\.me\//i, '').replace(/^@/, ''))
-    .refine((v) => v === '' || /^[a-zA-Z0-9_]{5,32}$/.test(v), 'Ник в Telegram выглядит неверно'),
+    .refine((v) => v === '' || /^[a-zA-Z0-9_]{5,32}$/.test(v), 'Ник в Telegram — латиница, цифры и _, от 5 символов, например @serafim_6s'),
   comment: z.string().trim().max(500, 'Комментарий слишком длинный'),
   /** Принятие публичной оферты (договор купли-продажи). */
   offerAccepted: z.literal(true, { error: 'Нужно принять условия оферты' }),
