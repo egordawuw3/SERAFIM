@@ -3,7 +3,9 @@
  * сайт обращается к своему /api/cdek/*. Ошибка «СДЭК недоступен» — DeliveryUnavailableError: форма переходит
  * в ручной режим (покупатель пишет город и пункт сам), заказ не теряется.
  */
+import type { CountryCode } from '../model/countries'
 import type { OrderTotals } from '../model/pricing'
+import type { OrderPayment } from '../model/schema'
 
 export interface City {
   code: number
@@ -42,15 +44,15 @@ async function getJson<T>(url: string, signal?: AbortSignal): Promise<T> {
   return (await res.json()) as T
 }
 
-export const fetchCities = (q: string, signal?: AbortSignal) =>
-  getJson<{ cities: City[] }>(`/api/cdek/cities?${new URLSearchParams({ q })}`, signal).then((d) => d.cities)
+export const fetchCities = (q: string, country: CountryCode, signal?: AbortSignal) =>
+  getJson<{ cities: City[] }>(`/api/cdek/cities?${new URLSearchParams({ q, country })}`, signal).then((d) => d.cities)
 
-export const fetchPoints = (cityCode: number, signal?: AbortSignal) =>
-  getJson<{ points: PickupPoint[] }>(`/api/cdek/points?city=${cityCode}`, signal).then((d) => d.points)
+export const fetchPoints = (cityCode: number, country: CountryCode, signal?: AbortSignal) =>
+  getJson<{ points: PickupPoint[] }>(`/api/cdek/points?city=${cityCode}&country=${country}`, signal).then((d) => d.points)
 
 /** Доставка посылки из этих вещей (одна посылка на весь заказ). */
-export const fetchQuote = (items: { productId: string; qty: number }[], cityCode: number, signal?: AbortSignal) =>
-  getJson<{ quote: DeliveryQuote; totals: OrderTotals }>(
-    `/api/cdek/quote?${new URLSearchParams({ items: items.map((i) => `${i.productId}:${i.qty}`).join(','), city: String(cityCode) })}`,
+export const fetchQuote = (items: { productId: string; qty: number }[], cityCode: number, country: CountryCode, signal?: AbortSignal) =>
+  getJson<{ quote: DeliveryQuote; totals: OrderTotals; payment: OrderPayment }>(
+    `/api/cdek/quote?${new URLSearchParams({ items: items.map((i) => `${i.productId}:${i.qty}`).join(','), city: String(cityCode), country })}`,
     signal,
   )

@@ -1,6 +1,6 @@
 import { Link, useLocation } from 'react-router'
 import type { OrderResponse } from '@/entities/order/model/schema'
-import { formatPrice } from '@/shared/lib/format'
+import { formatPrice, formatTenge } from '@/shared/lib/format'
 
 export function OrderSuccessPage() {
   const order = (useLocation().state as { order?: OrderResponse } | null)?.order
@@ -27,10 +27,20 @@ export function OrderSuccessPage() {
         {order.cdekCreated ? 'Заказ оформлен' : 'Заказ принят'}
       </h1>
       <p className="mt-6 max-w-md text-[12px] leading-relaxed text-ink/70">
-        {order.cdekCreated
-          ? 'Трек-номер придёт по смс от СДЭК, когда посылку передадут в доставку.'
-          : 'Мы свяжемся с вами, чтобы подтвердить доставку.'}{' '}
-        Оплата при получении в пункте СДЭК: {formatPrice(order.payOnPickup)}.
+        {order.payment?.method === 'prepay' ? (
+          <>
+            Продавец напишет вам в Telegram с реквизитами для оплаты: {formatPrice(order.payment.amount)}. Посылку отправим после
+            оплаты, трек-номер придёт по смс от СДЭК.
+          </>
+        ) : (
+          <>
+            {order.cdekCreated
+              ? 'Трек-номер придёт по смс от СДЭК, когда посылку передадут в доставку.'
+              : 'Мы свяжемся с вами, чтобы подтвердить доставку.'}{' '}
+            Оплата при получении в пункте СДЭК:{' '}
+            {order.payment?.currency === 'KZT' ? formatTenge(order.payment.amount) : formatPrice(order.payOnPickup)}.
+          </>
+        )}
       </p>
       <Link to="/#catalog" className="link-hover mt-10 text-[12px] uppercase tracking-[0.15em]">
         Вернуться в каталог →

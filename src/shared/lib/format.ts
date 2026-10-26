@@ -6,6 +6,11 @@ const rub = new Intl.NumberFormat('ru-RU', {
 
 export const formatPrice = (value: number) => rub.format(value)
 
+const kzt = new Intl.NumberFormat('ru-RU', { style: 'currency', currency: 'KZT', currencyDisplay: 'narrowSymbol', maximumFractionDigits: 0 })
+
+/** Сумма в тенге — для оплаты при получении в Казахстане. */
+export const formatTenge = (value: number) => kzt.format(value)
+
 /** Склонение: plural(3, ['товар', 'товара', 'товаров']) → 'товара' */
 export function plural(n: number, forms: [string, string, string]): string {
   const mod10 = n % 10

@@ -19,7 +19,7 @@ const absUrl = (path: string) => `${origin()}${path}`
 
 const BRAND = site.name
 const DEFAULT_DESCRIPTION =
-  'SERAFIM — одежда со смыслом: худи и регбийки кроп-фит с принтами, производство в России. Доставка СДЭК по всей России.'
+  'SERAFIM — одежда со смыслом: худи и регбийки кроп-фит с принтами, производство в России. Доставка СДЭК по России, Казахстану и Беларуси.'
 /** Баннер главной (BrandBanner): те же srcset/sizes, что у его <picture>. */
 const HERO_PRELOAD = {
   srcSet: '/images/hero-640.webp 640w, /images/hero-960.webp 960w, /images/hero-1280.webp 1280w, /images/hero-1920.webp 1920w, /images/hero-2560.webp 2560w',

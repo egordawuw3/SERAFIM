@@ -1,4 +1,5 @@
 import { cdekTrackingUrl } from './cdek.ts'
+import { COUNTRIES } from '../src/entities/order/model/countries.ts'
 import { sizeLabel, type Order } from './order.ts'
 
 const escapeHtml = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
@@ -8,6 +9,7 @@ const TELEGRAM_LIMIT = 4096
 const TRUNCATED_NOTE = '\n…\n<i>Сообщение обрезано, полный заказ — в базе заказов</i>'
 
 const rub = (n: number) => `${n.toLocaleString('ru-RU')} ₽`
+const tenge = (n: number) => `${n.toLocaleString('ru-RU')} ₸`
 
 /** Строка СДЭК в конце сообщения: номер со ссылкой на отслеживание или понятное предупреждение. */
 function cdekLine(order: Order): string {
@@ -16,6 +18,9 @@ function cdekLine(order: Order): string {
     return cdek.number
       ? `<b>СДЭК:</b> № ${escapeHtml(cdek.number)} · <a href="${cdekTrackingUrl(cdek.number)}">отследить</a>`
       : '<b>СДЭК:</b> заказ создан, номер — в личном кабинете СДЭК'
+  }
+  if (cdek.status === 'prepay') {
+    return '💳 <b>Предоплата переводом.</b> Напишите покупателю, после оплаты оформите посылку в СДЭК вручную.'
   }
   if (cdek.status === 'failed') return `⚠️ <b>В СДЭК не создан — оформите вручную.</b> ${escapeHtml(cdek.error ?? '')}`.trim()
   return '⚠️ <b>СДЭК не подключён — оформите доставку вручную.</b>'
@@ -34,14 +39,21 @@ const prettyPhone = (phone: string) => {
 export function formatOrderMessage(order: Order): string {
   const { customer: c, items, delivery, totals } = order
   const quote = delivery.quote
+  const country = order.country && order.country !== 'RU' ? `${COUNTRIES[order.country].name}, ` : ''
   const point = delivery.note
-    ? `${escapeHtml(delivery.note)} (указал покупатель)`
+    ? `${country}${escapeHtml(delivery.note)} (указал покупатель)`
     : delivery.point
-      ? `${escapeHtml(delivery.point.city)}, ${escapeHtml(delivery.point.address)} (${escapeHtml(delivery.pointCode)})`
+      ? `${country}${escapeHtml(delivery.point.city)}, ${escapeHtml(delivery.point.address)} (${escapeHtml(delivery.pointCode)})`
       : escapeHtml(delivery.pointCode)
-  const pay = totals.prepayment
-    ? `предоплата ${rub(totals.prepayment)}, при получении ${rub(totals.payOnPickup)}`
-    : 'оплата при получении'
+  const payment = order.payment
+  const pay =
+    payment?.method === 'prepay'
+      ? 'предоплата переводом продавцу'
+      : payment?.currency === 'KZT'
+        ? `при получении <b>${tenge(payment.amount)}</b>`
+        : totals.prepayment
+          ? `предоплата ${rub(totals.prepayment)}, при получении ${rub(totals.payOnPickup)}`
+          : 'оплата при получении'
   const rows: (string | null)[] = [
     '<b>Новый заказ</b>',
     ...items.flatMap((i) => [

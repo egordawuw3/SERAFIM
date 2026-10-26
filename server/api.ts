@@ -2,6 +2,7 @@ import { Hono, type Context } from 'hono'
 import { bodyLimit } from 'hono/body-limit'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
+import { COUNTRIES, type CountryCode } from '../src/entities/order/model/countries.ts'
 import { orderTotals } from '../src/entities/order/model/pricing.ts'
 import {
   ORDER_FORM_FIELDS,
@@ -15,11 +16,13 @@ import { shortLinkTarget } from '../src/entities/product/lib/shortLink.ts'
 import { products } from '../src/entities/product/model/catalog.ts'
 import { site } from '../src/shared/config/site.ts'
 import { CdekError, type CdekClient, type CdekPoint, type CdekQuote } from './cdek.ts'
+import { codAmounts, kztPerRub } from './currency.ts'
 import { rateLimitKey } from './limits.ts'
 import {
   anonymize,
   canAnonymizeNow,
   createOrder,
+  orderPayment,
   OrderValidationError,
   packageFor,
   resolveItems,
@@ -151,6 +154,12 @@ export function createApi(platform: ApiPlatform): Hono {
 
   // ---------- Доставка СДЭК: подсказки и расчёт для формы заказа ----------
 
+  /** ?country=KZ — страна доставки; неизвестная или без параметра — Россия. */
+  const countryParam = (c: Context): CountryCode => {
+    const v = c.req.query('country')?.toUpperCase()
+    return v && v in COUNTRIES ? (v as CountryCode) : 'RU'
+  }
+
   const deliveryUnavailable = (c: Context) =>
     c.json<ApiError>({ error: 'Расчёт доставки СДЭК сейчас недоступен. Оформите заказ — мы посчитаем доставку сами.' }, 503)
 
@@ -168,9 +177,10 @@ export function createApi(platform: ApiPlatform): Hono {
 
   app.get('/api/cdek/cities', async (c) => {
     const q = (c.req.query('q') ?? '').trim()
+    const country = countryParam(c)
     if (q.length < 2 || q.length > 60) return c.json({ cities: [] })
     try {
-      return c.json({ cities: await citiesCache(q.toLowerCase(), () => cdek!.suggestCities(q)) })
+      return c.json({ cities: await citiesCache(`${country}:${q.toLowerCase()}`, () => cdek!.suggestCities(q, country)) })
     } catch (err) {
       console.error('[cdek] cities', err)
       return deliveryUnavailable(c)
@@ -181,7 +191,9 @@ export function createApi(platform: ApiPlatform): Hono {
     const city = Number(c.req.query('city'))
     if (!Number.isInteger(city) || city <= 0) return c.json<ApiError>({ error: 'Не указан город' }, 400)
     try {
-      return c.json({ points: await pointsCache(String(city), () => cdek!.points(city)) })
+      // При предоплате (Беларусь) годится любой пункт выдачи, при оплате на месте — только с наложенным платежом.
+      const cod = COUNTRIES[countryParam(c)].payment === 'cod'
+      return c.json({ points: await pointsCache(`${city}:${cod}`, () => cdek!.points(city, { cod })) })
     } catch (err) {
       console.error('[cdek] points', err)
       return deliveryUnavailable(c)
@@ -202,9 +214,13 @@ export function createApi(platform: ApiPlatform): Hono {
     if (!valid || !Number.isInteger(city) || city <= 0) return c.json<ApiError>({ error: 'Некорректный запрос' }, 400)
     const known = lines as { product: (typeof products)[number]; qty: number }[]
     try {
+      const country = countryParam(c)
       const quote = await quoteFor(known, city)
       const goods = known.reduce((sum, l) => sum + l.product.price * l.qty, 0)
-      return c.json({ quote, totals: orderTotals(goods, quote.sum, site.shipping.prepaymentAmount) })
+      const totals = orderTotals(goods, quote.sum, site.shipping.prepaymentAmount)
+      const rate = COUNTRIES[country].currency === 'KZT' ? await kztPerRub() : undefined
+      const { method, currency, amount } = orderPayment(country, known.map((l) => ({ price: l.product.price, qty: l.qty })), totals, rate)
+      return c.json({ quote, totals, payment: { method, currency, amount } })
     } catch (err) {
       console.error('[cdek] quote', err)
       return deliveryUnavailable(c)
@@ -304,7 +320,13 @@ export function createApi(platform: ApiPlatform): Hono {
 
     const respond = (order: Order) =>
       c.json<OrderResponse>(
-        { number: order.number, total: order.totals.total, payOnPickup: order.totals.payOnPickup, cdekCreated: order.cdek.status === 'created' },
+        {
+          number: order.number,
+          total: order.totals.total,
+          payOnPickup: order.totals.payOnPickup,
+          payment: { method: order.payment!.method, currency: order.payment!.currency, amount: order.payment!.amount },
+          cdekCreated: order.cdek.status === 'created',
+        },
         201,
       )
 
@@ -318,20 +340,25 @@ export function createApi(platform: ApiPlatform): Hono {
 
     // Пункт выдачи и доставку сервер проверяет и считает сам: суммы из браузера не принимаются на веру.
     // Если СДЭК недоступен — заказ всё равно принимается и уходит продавцу с пометкой «оформите вручную».
+    let kztRate: number | undefined
     if (cdek && !manual) {
       cdekState = { status: 'failed', env: cdek.env }
       try {
         const point = await pointCache(input.pointCode, () => cdek.point(input.pointCode))
-        if (!point || point.cityCode !== input.cityCode) {
+        if (!point || point.cityCode !== input.cityCode || point.countryCode !== input.country) {
           return c.json<ApiError>({ error: 'Проверьте поля формы', fields: { pointCode: 'Пункт выдачи не найден — выберите другой' } }, 400)
         }
         delivery.point = { city: point.city, address: point.address, name: point.name, workTime: point.workTime }
         delivery.quote = await quoteFor(lines, input.cityCode)
+        if (COUNTRIES[input.country].currency === 'KZT') kztRate = await kztPerRub()
       } catch (err) {
-        console.error('[orders] СДЭК: проверка пункта или расчёт доставки', err)
-        cdekState.error = err instanceof CdekError ? err.message : 'СДЭК недоступен'
+        console.error('[orders] СДЭК: проверка пункта, расчёт доставки или курс тенге', err)
+        cdekState.error = err instanceof CdekError ? err.message : kztRate === undefined && delivery.quote ? 'не удалось получить курс тенге' : 'СДЭК недоступен'
       }
     }
+    // Беларусь: наложенного платежа нет — продавец берёт оплату переводом и оформляет посылку сам.
+    const prepay = COUNTRIES[input.country].payment === 'prepay'
+    if (prepay && !manual) cdekState = { status: 'prepay', env: cdek?.env }
 
     // Остаток списывается последним, когда заказ точно принимается (пункт выдачи проверен).
     const taken = await platform.takeStock(mergeStockLines(items.map((i) => ({ sku: i.sku, qty: i.qty }))))
@@ -345,9 +372,12 @@ export function createApi(platform: ApiPlatform): Hono {
     }
     for (const i of items) if (i.sku in taken.left) i.left = taken.left[i.sku]
 
-    const order = createOrder(input, items, delivery, cdekState)
+    const order = createOrder(input, items, delivery, cdekState, kztRate)
 
-    if (cdek && delivery.quote) {
+    const needsRate = COUNTRIES[input.country].currency === 'KZT'
+    if (cdek && delivery.quote && !prepay && (!needsRate || kztRate)) {
+      // Наложенный платёж — в валюте страны получателя (Казахстан — тенге).
+      const cod = codAmounts(items, order.totals.delivery, kztRate)
       try {
         const uuid = await cdek.createOrder({
           number: order.number,
@@ -359,11 +389,12 @@ export function createApi(platform: ApiPlatform): Hono {
             name: `${item.name}, ${item.color.toLowerCase()}, ${sizeLabel(item.size)}`,
             wareKey: cdekWareKey({ ...item, colorId: input.items[i].colorId }),
             price: item.price,
+            cod: cod.units[i],
             qty: item.qty,
             weightG: unitPackage(product).weightG,
           })),
           pkg: packageFor(lines),
-          deliveryCost: delivery.quote.sum,
+          deliveryCost: cod.delivery,
           prepaid: order.totals.prepayment,
         })
         order.cdek = { status: 'created', env: cdek.env, uuid }

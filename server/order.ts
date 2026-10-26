@@ -1,9 +1,11 @@
 import { products } from '../src/entities/product/model/catalog.ts'
 import type { Product } from '../src/entities/product/model/types.ts'
-import type { OrderRequestParsed } from '../src/entities/order/model/schema.ts'
+import { COUNTRIES, type CountryCode } from '../src/entities/order/model/countries.ts'
+import type { OrderPayment, OrderRequestParsed } from '../src/entities/order/model/schema.ts'
 import { orderTotals, type OrderTotals } from '../src/entities/order/model/pricing.ts'
 import { site } from '../src/shared/config/site.ts'
 import type { CdekPackage, CdekPoint, CdekQuote } from './cdek.ts'
+import { codAmounts } from './currency.ts'
 
 export interface OrderItem {
   productId: string
@@ -29,8 +31,11 @@ export interface OrderDelivery {
 }
 
 export interface OrderCdek {
-  /** created — заказ принят СДЭК; failed — не создан, продавец оформляет вручную; off — СДЭК не подключён. */
-  status: 'created' | 'failed' | 'off'
+  /**
+   * created — заказ принят СДЭК; failed — не создан, продавец оформляет вручную; off — СДЭК не подключён;
+   * prepay — предоплата (Беларусь): продавец сам берёт оплату и оформляет посылку.
+   */
+  status: 'created' | 'failed' | 'off' | 'prepay'
   env?: 'test' | 'prod'
   uuid?: string
   number?: string
@@ -50,6 +55,10 @@ export interface Order {
   items: OrderItem[]
   delivery: OrderDelivery
   totals: OrderTotals
+  /** Страна доставки (у заказов до появления стран поля нет — Россия). */
+  country?: CountryCode
+  /** Как и сколько платит покупатель; rate — тенге за рубль, если платёж в тенге. */
+  payment?: OrderPayment & { rate?: number }
   cdek: OrderCdek
   /** Когда из заказа стёрты персональные данные (имя, телефон, Telegram, комментарий, описанный вручную пункт). */
   personalDataRemovedAt?: string
@@ -143,14 +152,34 @@ function orderNumber(now = new Date()): string {
   return `SRF-${date}-${suffix}`
 }
 
+/** Как платит покупатель: Беларусь — переводом до отправки, Казахстан — при получении в тенге, Россия — при получении в рублях. */
+export function orderPayment(
+  country: CountryCode,
+  items: { price: number; qty: number }[],
+  totals: OrderTotals,
+  kztRate?: number,
+): OrderPayment & { rate?: number } {
+  if (COUNTRIES[country].payment === 'prepay') return { method: 'prepay', currency: 'RUB', amount: totals.total }
+  if (kztRate) return { method: 'cod', currency: 'KZT', amount: codAmounts(items, totals.delivery, kztRate).total, rate: kztRate }
+  return { method: 'cod', currency: 'RUB', amount: totals.payOnPickup }
+}
+
 export function createOrder(
   input: OrderRequestParsed,
   items: OrderItem[],
   delivery: OrderDelivery,
   cdek: OrderCdek,
+  /** Тенге за рубль — для наложенного платежа в Казахстане. */
+  kztRate?: number,
   now = new Date(),
 ): Order {
   const at = now.toISOString()
+  const totals = orderTotals(
+    items.reduce((sum, i) => sum + i.price * i.qty, 0),
+    delivery.quote?.sum ?? 0,
+    site.shipping.prepaymentAmount,
+  )
+  const payment = orderPayment(input.country, items, totals, kztRate)
   return {
     number: orderNumber(now),
     createdAt: at,
@@ -160,11 +189,9 @@ export function createOrder(
     customer: { name: input.name, phone: input.phone, telegram: input.telegram, comment: input.comment },
     items,
     delivery,
-    totals: orderTotals(
-      items.reduce((sum, i) => sum + i.price * i.qty, 0),
-      delivery.quote?.sum ?? 0,
-      site.shipping.prepaymentAmount,
-    ),
+    totals,
+    country: input.country,
+    payment,
     cdek,
   }
 }

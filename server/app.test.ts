@@ -15,23 +15,27 @@ let app: typeof import('./app.ts').app
  */
 let cdekMode: 'ok' | 'down' | 'timeout' | 'lookup-down' = 'ok'
 const cdekOrders: unknown[] = []
-const point = (code: string, cityCode: number, city: string, address: string) => ({
+const point = (code: string, cityCode: number, city: string, address: string, country = 'RU') => ({
   code,
   name: `${code}, ${city}`,
   work_time: 'Пн-Вс 10:00-20:00',
   allowed_cod: true,
   is_handout: true,
-  location: { city_code: cityCode, city, address, latitude: 55.7, longitude: 49.1 },
+  location: { country_code: country, city_code: cityCode, city, address, latitude: 55.7, longitude: 49.1 },
 })
 const POINTS: Record<string, ReturnType<typeof point>> = {
   MSK65: point('MSK65', 44, 'Москва', 'ул. Динамовская, 1А'),
   KZN3: point('KZN3', 424, 'Казань', 'ул. Спартаковская, 2'),
+  ALM1: point('ALM1', 4756, 'Алматы', 'пр. Абая, 1', 'KZ'),
+  MNS1: point('MNS1', 9220, 'Минск', 'пр. Независимости, 1', 'BY'),
 }
 
 async function fakeFetch(input: string | URL | Request, init?: RequestInit): Promise<Response> {
   const url = new URL(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url)
   const json = (data: unknown, status = 200) => new Response(JSON.stringify(data), { status, headers: { 'content-type': 'application/json' } })
   if (url.hostname === 'api.telegram.org') return json({ ok: true })
+  // Курс ЦБ: 15 ₽ за 100 ₸ — 6,67 ₸ за рубль.
+  if (url.hostname === 'www.cbr-xml-daily.ru') return json({ Valute: { KZT: { Nominal: 100, Value: 15 } } })
   if (url.hostname !== 'api.edu.cdek.ru') throw new Error(`unexpected fetch ${url}`)
   const path = url.pathname.replace('/v2', '')
   if (path === '/oauth/token') return json({ access_token: 'test-token', expires_in: 3600 })
@@ -159,7 +163,7 @@ describe('POST /api/orders', () => {
     expect(saved.cdek.status).toBe('failed')
     expect(saved.delivery.quote).toBeUndefined()
     // Ошибки СДЭК не уходят покупателю — только флаг и суммы.
-    expect(Object.keys((await noLookup.clone().json()) as object).sort()).toEqual(['cdekCreated', 'number', 'payOnPickup', 'total'])
+    expect(Object.keys((await noLookup.clone().json()) as object).sort()).toEqual(['cdekCreated', 'number', 'payOnPickup', 'payment', 'total'])
   })
 
   it('accepts a manually described pickup point when CDEK lookups were unavailable', async () => {
@@ -182,6 +186,41 @@ describe('POST /api/orders', () => {
     expect(res.status).toBe(400)
     const { fields } = (await res.json()) as { fields: Record<string, string> }
     expect(Object.keys(fields)).toEqual(expect.arrayContaining(['name', 'phone', 'consent', 'offerAccepted']))
+  })
+
+  it('Kazakhstan: cash on delivery in tenge at the central bank rate plus margin', async () => {
+    const kz = { ...validOrder, country: 'KZ', cityCode: 4756, pointCode: 'ALM1', phone: '+7 701 123 45 67' }
+    const res = await post(kz, '1.2.0.1')
+    expect(res.status).toBe(201)
+    // Худи 4 200 ₽ → 4 200 × 6,667 × 1,03 = 28 840 ₸; доставка 311 ₽ → 2 140 ₸ (вверх до 10 ₸).
+    expect(((await res.json()) as { payment: unknown }).payment).toEqual({ method: 'cod', currency: 'KZT', amount: 30980 })
+    const sent = cdekOrders.at(-1) as { delivery_recipient_cost: { value: number }; packages: { items: { payment: { value: number }; cost: number }[] }[] }
+    expect(sent.delivery_recipient_cost.value).toBe(2140)
+    expect(sent.packages[0].items[0]).toMatchObject({ payment: { value: 28840 }, cost: 4200 })
+    expect(lastSaved()).toMatchObject({ country: 'KZ', customer: { phone: '+77011234567' }, payment: { currency: 'KZT', amount: 30980 } })
+
+    const quote = await app.request('/api/cdek/quote?city=4756&items=p2:1&country=KZ', { headers: { 'x-forwarded-for': '4.4.4.5' } })
+    expect(((await quote.json()) as { payment: unknown }).payment).toEqual({ method: 'cod', currency: 'KZT', amount: 30980 })
+
+    // Пункт в другой стране — нельзя выбрать «Казахстан» с российским пунктом.
+    const wrong = await post({ ...kz, cityCode: 424, pointCode: 'KZN3' }, '1.2.0.2')
+    expect(wrong.status).toBe(400)
+  })
+
+  it('Belarus: prepayment by transfer, no CDEK order, Telegram nick required', async () => {
+    const by = { ...validOrder, country: 'BY', cityCode: 9220, pointCode: 'MNS1', phone: '+375 29 123-45-67' }
+    const created = cdekOrders.length
+    const res = await post(by, '1.2.0.3')
+    expect(res.status).toBe(201)
+    expect(await res.json()).toMatchObject({ cdekCreated: false, payment: { method: 'prepay', currency: 'RUB', amount: 4511 } })
+    expect(cdekOrders.length).toBe(created)
+    expect(lastSaved()).toMatchObject({ country: 'BY', cdek: { status: 'prepay' }, customer: { phone: '+375291234567', telegram: 'ivan_petrov' } })
+
+    const noNick = await post({ ...by, telegram: '' }, '1.2.0.4')
+    expect(noNick.status).toBe(400)
+    expect(((await noNick.json()) as { fields: Record<string, string> }).fields).toHaveProperty('telegram')
+    const ruPhone = await post({ ...by, phone: '+7 999 123-45-67' }, '1.2.0.5')
+    expect(((await ruPhone.json()) as { fields: Record<string, string> }).fields).toHaveProperty('phone')
   })
 
   it('rejects sizes a product does not have and unknown products', async () => {
@@ -382,7 +421,7 @@ describe('buildCdekOrder', () => {
       deliveryPoint: 'KZN3',
       sender: { name: 'S', phone: '+70000000000' },
       recipient: { name: 'R', phone: '+79991234567' },
-      items: [{ name: 'Худи', wareKey: 'SKU', price: 4500, qty: 2, weightG: 800 }],
+      items: [{ name: 'Худи', wareKey: 'SKU', price: 4500, cod: 4500, qty: 2, weightG: 800 }],
       pkg: { weightG: 1600, dimsCm: [30, 25, 16] },
       deliveryCost: 300,
       prepaid: 900,

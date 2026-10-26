@@ -11,8 +11,9 @@ import {
 } from '@/entities/order/api/deliveryApi'
 import { OrderSubmitError, submitOrder } from '@/entities/order/api/orderApi'
 import { MAX_ITEM_QTY } from '@/entities/order/model/limits'
+import { COUNTRIES, COUNTRY_CODES, type CountryCode } from '@/entities/order/model/countries'
 import { orderTotals } from '@/entities/order/model/pricing'
-import { MANUAL_POINT, orderRequestSchema, type OrderRequest } from '@/entities/order/model/schema'
+import { MANUAL_POINT, orderRequestSchema, type OrderPayment, type OrderRequest } from '@/entities/order/model/schema'
 import { getProductBySlug } from '@/entities/product/api/productApi'
 import { findColor, isSizeAvailable } from '@/entities/product/lib/availability'
 import { loadStock } from '@/entities/product/model/stock'
@@ -22,7 +23,7 @@ import { countItems, itemKey, subtotal } from '@/features/cart/model/cart'
 import { useCart, useCartHydrated } from '@/features/cart/model/store'
 import { site } from '@/shared/config/site'
 import { cn } from '@/shared/lib/cn'
-import { formatPrice } from '@/shared/lib/format'
+import { formatPrice, formatTenge } from '@/shared/lib/format'
 import { formatPhoneInput } from '@/shared/lib/phone'
 import { Field, Input, Textarea } from '@/shared/ui/Field'
 
@@ -76,11 +77,13 @@ export function CheckoutPage() {
     navigate('/checkout', { replace: true })
   }, [hydrated, addSlug, params, addToCart, navigate])
 
+  // Страна доставки: Россия и Казахстан — оплата при получении (в Казахстане в тенге), Беларусь — предоплата переводом.
+  const [country, setCountry] = useState<CountryCode>('RU')
   const [city, setCity] = useState<City | null>(null)
   // Ответы привязаны к запросу (город, состав корзины): пока ключ не совпал с текущим — идёт загрузка.
   const [pointsFor, setPointsFor] = useState<{ city: number; points: PickupPoint[] } | null>(null)
   const [pointCode, setPointCode] = useState<string | null>(null)
-  const [quoteFor, setQuoteFor] = useState<{ key: string; quote: DeliveryQuote | null } | null>(null)
+  const [quoteFor, setQuoteFor] = useState<{ key: string; quote: DeliveryQuote | null; payment?: OrderPayment } | null>(null)
   // СДЭК не ответил — покупатель описывает пункт сам.
   const [manual, setManual] = useState(false)
   const [deliveryNote, setDeliveryNote] = useState('')
@@ -103,7 +106,7 @@ export function CheckoutPage() {
   useEffect(() => {
     if (!city) return
     const ctrl = new AbortController()
-    fetchPoints(city.code, ctrl.signal)
+    fetchPoints(city.code, country, ctrl.signal)
       .then((points) => setPointsFor({ city: city.code, points }))
       .catch((err: Error) => {
         if (err.name === 'AbortError') return
@@ -111,7 +114,7 @@ export function CheckoutPage() {
         else setPointsFor({ city: city.code, points: [] })
       })
     return () => ctrl.abort()
-  }, [city])
+  }, [city, country])
 
   // Доставка: зависит от города и состава посылки (вес и габариты), размер не важен.
   const parcel = useMemo(() => {
@@ -120,12 +123,12 @@ export function CheckoutPage() {
     return [...byProduct].map(([productId, qty]) => ({ productId, qty }))
   }, [items])
   const parcelKey = parcel.map((l) => `${l.productId}*${l.qty}`).join(',')
-  const quoteKey = city && parcel.length ? `${parcelKey}:${city.code}` : null
+  const quoteKey = city && parcel.length ? `${parcelKey}:${city.code}:${country}` : null
   useEffect(() => {
     if (!city || !quoteKey) return
     const ctrl = new AbortController()
-    fetchQuote(parcel, city.code, ctrl.signal)
-      .then((d) => setQuoteFor({ key: quoteKey, quote: d.quote }))
+    fetchQuote(parcel, city.code, country, ctrl.signal)
+      .then((d) => setQuoteFor({ key: quoteKey, quote: d.quote, payment: d.payment }))
       .catch((err: Error) => {
         if (err.name !== 'AbortError') setQuoteFor({ key: quoteKey, quote: null })
       })
@@ -137,6 +140,19 @@ export function CheckoutPage() {
   const points = city && pointsFor?.city === city.code ? pointsFor.points : null
   const quoteLoading = quoteKey !== null && quoteFor?.key !== quoteKey
   const quote = !quoteLoading && quoteFor ? quoteFor.quote : null
+  const payment = !quoteLoading ? quoteFor?.payment : undefined
+  const prepay = COUNTRIES[country].payment === 'prepay'
+
+  const changeCountry = (next: CountryCode) => {
+    if (next === country) return
+    setCountry(next)
+    setCity(null)
+    setPointCode(null)
+    setManual(false)
+    // У Беларуси другой формат номера — набранный под +7 номер там не подойдёт, и наоборот.
+    if (next === 'BY' || country === 'BY') setPhone('')
+    setErrors({})
+  }
 
   // Корзина живёт в браузере, в готовом HTML её нет: пока она не подхвачена — место под форму, чтобы футер не прыгал (CLS).
   if (!hydrated || addSlug) return <section className="min-h-[100svh] flex-1" aria-busy="true" />
@@ -163,6 +179,7 @@ export function CheckoutPage() {
 
     const payload: OrderRequest = {
       items: items.map(({ productId, colorId, size, qty }) => ({ productId, colorId, size, qty })),
+      country,
       cityCode: manual ? 0 : (city?.code ?? 0),
       pointCode: manual ? MANUAL_POINT : (pointCode ?? ''),
       deliveryNote: manual ? deliveryNote : '',
@@ -251,6 +268,29 @@ export function CheckoutPage() {
           {/* Доставка */}
           <fieldset className="min-w-0 space-y-5">
             <legend className="mb-5 uppercase tracking-[0.12em]">Доставка СДЭК до пункта выдачи</legend>
+            <div role="radiogroup" aria-label="Страна доставки" className="flex flex-wrap gap-2">
+              {COUNTRY_CODES.map((code) => (
+                <button
+                  key={code}
+                  type="button"
+                  role="radio"
+                  aria-checked={country === code}
+                  onClick={() => changeCountry(code)}
+                  className={cn(
+                    'h-10 rounded-lg border px-4 transition-colors',
+                    country === code ? 'border-ink bg-ink text-paper' : 'border-ink/25 hover:border-ink',
+                  )}
+                >
+                  {COUNTRIES[code].name}
+                </button>
+              ))}
+            </div>
+            {prepay && (
+              <p className="rounded-lg bg-paper-deep p-4 leading-relaxed">
+                В Беларусь — только по предоплате: оплата переводом до отправки. После заказа продавец напишет вам в Telegram
+                с реквизитами, посылку отправим после оплаты.
+              </p>
+            )}
             {manual ? (
               <Field
                 label="Город и адрес удобного пункта СДЭК"
@@ -269,6 +309,8 @@ export function CheckoutPage() {
             ) : (
               <>
                 <CityField
+                  key={country}
+                  country={country}
                   value={city}
                   error={errors.cityCode}
                   onUnavailable={() => setManual(true)}
@@ -298,7 +340,7 @@ export function CheckoutPage() {
                     {quoteLoading
                       ? 'Считаем доставку…'
                       : quote
-                        ? `Доставка: ${formatPrice(quote.sum)}, ${periodText(quote)}`
+                        ? `Доставка: ${formatPrice(quote.sum)}, ${periodText(quote)}${payment?.currency === 'KZT' ? ` · при получении ${formatTenge(payment.amount)}` : ''}`
                         : 'Стоимость доставки уточним после оформления'}
                   </p>
                 )}
@@ -325,16 +367,20 @@ export function CheckoutPage() {
                 type="tel"
                 inputMode="tel"
                 autoComplete="tel"
-                placeholder="+7 (900) 000-00-00"
+                placeholder={COUNTRIES[country].phonePlaceholder}
                 value={phone}
                 onChange={(e) => {
-                  setPhone(formatPhoneInput(e.target.value))
+                  setPhone(formatPhoneInput(e.target.value, country))
                   clearError('phone')
                 }}
                 invalid={!!errors.phone}
               />
             </Field>
-            <Field label="Ник в Telegram (необязательно)" error={errors.telegram}>
+            <Field
+              label={prepay ? 'Ник в Telegram' : 'Ник в Telegram (необязательно)'}
+              hint={prepay ? 'Сюда продавец напишет про оплату' : undefined}
+              error={errors.telegram}
+            >
               <Input
                 placeholder="@username"
                 autoCapitalize="off"
@@ -376,7 +422,11 @@ export function CheckoutPage() {
             <span>{formatPrice(totals.total)}</span>
           </div>
           <p className="mt-2 pb-5 text-[11px] leading-relaxed text-ink/70">
-            {totals.prepayment
+            {prepay
+              ? 'Оплата переводом продавцу до отправки: товар и доставка. Реквизиты продавец пришлёт в Telegram.'
+              : payment?.currency === 'KZT'
+                ? `При получении в пункте СДЭК — ${formatTenge(payment.amount)} (в тенге по курсу ЦБ). Можно осмотреть вещь до оплаты.`
+                : totals.prepayment
               ? `Предоплата ${formatPrice(totals.prepayment)}, остальное — ${formatPrice(totals.payOnPickup)} при получении в пункте СДЭК.`
               : 'Оплата при получении в пункте СДЭК: товар и доставка. Можно осмотреть вещь до оплаты.'}
             {!quote && ' Доставка добавится после выбора города.'}
@@ -486,13 +536,21 @@ function QtyStepper({ value, onChange }: { value: number; onChange: (n: number) 
 /*
  * Город с подсказками СДЭК: поле-комбобокс (ARIA combobox + listbox), стрелки и Enter работают с клавиатуры.
  */
+const CITY_HINT: Record<CountryCode, string> = {
+  RU: 'Начните вводить: Москва, Казань…',
+  KZ: 'Начните вводить: Алматы, Астана…',
+  BY: 'Начните вводить: Минск, Гомель…',
+}
+
 function CityField({
+  country,
   value,
   error,
   onChange,
   onClear,
   onUnavailable,
 }: {
+  country: CountryCode
   value: City | null
   error?: string
   onChange: (c: City) => void
@@ -515,7 +573,7 @@ function CityField({
     if (q.length < 2 || q === value?.name) return
     const ctrl = new AbortController()
     const t = setTimeout(() => {
-      fetchCities(q, ctrl.signal)
+      fetchCities(q, country, ctrl.signal)
         .then((list) => {
           setOptions(list)
           setActive(0)
@@ -529,7 +587,7 @@ function CityField({
       clearTimeout(t)
       ctrl.abort()
     }
-  }, [query, value])
+  }, [query, value, country])
 
   const pick = (c: City) => {
     onChange(c)
@@ -547,7 +605,7 @@ function CityField({
           aria-activedescendant={open && options[active] ? `${id}-${active}` : undefined}
           aria-autocomplete="list"
           autoComplete="off"
-          placeholder="Начните вводить: Москва, Казань…"
+          placeholder={CITY_HINT[country]}
           value={query}
           invalid={!!error}
           onChange={(e) => {

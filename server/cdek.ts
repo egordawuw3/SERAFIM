@@ -55,6 +55,8 @@ export interface CdekCity {
 
 export interface CdekPoint {
   code: string
+  /** Страна пункта (RU, KZ, BY…). */
+  countryCode: string
   name: string
   cityCode: number
   city: string
@@ -83,13 +85,16 @@ export interface CdekOrderInput {
   deliveryPoint: string
   sender: { name: string; phone: string }
   recipient: { name: string; phone: string }
-  /** Вещи в посылке: вес — одной штуки, г. */
-  items: { name: string; wareKey: string; price: number; qty: number; weightG: number }[]
+  /**
+   * Вещи в посылке: price — объявленная стоимость штуки, ₽ (страховка); cod — оплата за штуку при получении
+   * в валюте страны получателя (₽, в Казахстане ₸); вес — одной штуки, г.
+   */
+  items: { name: string; wareKey: string; price: number; cod: number; qty: number; weightG: number }[]
   /** Посылка целиком: суммарный вес и габариты. */
   pkg: CdekPackage
-  /** Сколько покупатель платит за доставку при получении, ₽. */
+  /** Сколько покупатель платит за доставку при получении — в валюте страны получателя. */
   deliveryCost: number
-  /** Сколько покупатель уже оплатил заранее, ₽ (вычитается из наложенного платежа за товар). */
+  /** Сколько покупатель уже оплатил заранее, ₽ (вычитается из наложенного платежа за товар пропорционально). */
   prepaid: number
 }
 
@@ -132,7 +137,7 @@ export function buildCdekOrder(o: CdekOrderInput) {
           name: i.name,
           // Лимит API v2 — 20 символов (иначе заказ отклоняется).
           ware_key: i.wareKey.slice(0, 20),
-          payment: { value: Math.round(i.price * codShare * 100) / 100 },
+          payment: { value: Math.round(i.cod * codShare * 100) / 100 },
           cost: i.price,
           weight: i.weightG,
           amount: i.qty,
@@ -196,17 +201,17 @@ export class CdekClient {
     return data
   }
 
-  async suggestCities(name: string): Promise<CdekCity[]> {
-    const q = new URLSearchParams({ name, country_code: 'RU' })
+  async suggestCities(name: string, countryCode = 'RU'): Promise<CdekCity[]> {
+    const q = new URLSearchParams({ name, country_code: countryCode })
     const list = await this.request<{ code: number; full_name: string }[]>('GET', `/location/suggest/cities?${q}`)
     return list.slice(0, 10).map((c) => ({ code: c.code, name: c.full_name }))
   }
 
-  /** Пункты выдачи города, где можно забрать посылку и оплатить её при получении. */
-  async points(cityCode: number): Promise<CdekPoint[]> {
-    const q = new URLSearchParams({ city_code: String(cityCode), type: 'PVZ', is_handout: 'true', allowed_cod: 'true' })
+  /** Пункты выдачи города; cod — только те, где можно оплатить при получении (не нужно при предоплате). */
+  async points(cityCode: number, { cod = true } = {}): Promise<CdekPoint[]> {
+    const q = new URLSearchParams({ city_code: String(cityCode), type: 'PVZ', is_handout: 'true', ...(cod ? { allowed_cod: 'true' } : {}) })
     const list = await this.request<RawPoint[]>('GET', `/deliverypoints?${q}`)
-    return list.filter((p) => p.allowed_cod !== false && p.is_handout !== false).map(toPoint)
+    return list.filter((p) => (!cod || p.allowed_cod !== false) && p.is_handout !== false).map(toPoint)
   }
 
   async point(code: string): Promise<CdekPoint | null> {
@@ -266,11 +271,12 @@ interface RawPoint {
   work_time?: string
   allowed_cod?: boolean
   is_handout?: boolean
-  location: { city_code: number; city: string; address?: string; address_full?: string; latitude: number; longitude: number }
+  location: { country_code?: string; city_code: number; city: string; address?: string; address_full?: string; latitude: number; longitude: number }
 }
 
 const toPoint = (p: RawPoint): CdekPoint => ({
   code: p.code,
+  countryCode: p.location.country_code ?? 'RU',
   name: p.name ?? p.code,
   cityCode: p.location.city_code,
   city: p.location.city,

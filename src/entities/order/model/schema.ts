@@ -1,5 +1,8 @@
 import { z } from 'zod'
+import { COUNTRIES, COUNTRY_CODES, normalizePhone } from './countries.ts'
 import { MAX_ITEM_QTY } from './limits.ts'
+
+export { normalizeRuPhone } from './countries.ts'
 
 /*
  * Схема заказа — общая для формы на сайте и для сервера. Товары из корзины, доставка СДЭК до пункта выдачи одной посылкой.
@@ -8,14 +11,6 @@ import { MAX_ITEM_QTY } from './limits.ts'
 
 /** Пункт выдачи не выбран на карте (СДЭК не ответил) — покупатель описал его сам, продавец оформит доставку вручную. */
 export const MANUAL_POINT = 'MANUAL_POINT'
-
-/** Российский номер в виде +7XXXXXXXXXX или null. Принимает 8…, 7…, +7… и 10 цифр без кода страны. */
-export function normalizeRuPhone(input: string): string | null {
-  const digits = input.replace(/\D/g, '')
-  if (digits.length === 10 && digits.startsWith('9')) return `+7${digits}`
-  if (digits.length === 11 && (digits.startsWith('7') || digits.startsWith('8'))) return `+7${digits.slice(1)}`
-  return null
-}
 
 const orderItemSchema = z.object({
   productId: z.string().min(1).max(64),
@@ -26,6 +21,8 @@ const orderItemSchema = z.object({
 
 export const orderRequestSchema = z.object({
   items: z.array(orderItemSchema).min(1, 'Корзина пуста').max(30),
+  /** Страна доставки; старые версии сайта её не присылают — значит, Россия. */
+  country: z.enum(COUNTRY_CODES).default('RU'),
   cityCode: z.number({ error: 'Выберите город' }).int().min(0),
   /** Код ПВЗ СДЭК или MANUAL_POINT, если СДЭК не ответил и покупатель описал пункт сам (deliveryNote). */
   pointCode: z
@@ -34,14 +31,15 @@ export const orderRequestSchema = z.object({
     .regex(/^[A-Za-z0-9_-]{2,32}$/, 'Выберите пункт выдачи'),
   deliveryNote: z.string().trim().max(200, 'Слишком длинно'),
   name: z.string().trim().min(2, 'Укажите имя и фамилию').max(80, 'Слишком длинное имя'),
+  /**
+   * Похож ли на номер хоть одной страны — проверяется сразу (вместе с остальными полями); номер именно выбранной
+   * страны и вид +7… / +375… — ниже, когда известна страна.
+   */
   phone: z
     .string()
     .trim()
-    .transform((v, ctx) => {
-      const phone = normalizeRuPhone(v)
-      if (!phone) ctx.addIssue({ code: 'custom', message: 'Укажите российский номер: +7 900 000-00-00' })
-      return phone ?? ''
-    }),
+    .max(32)
+    .refine((v) => COUNTRY_CODES.some((c) => normalizePhone(v, c)), 'Укажите номер телефона'),
   telegram: z
     .string()
     .trim()
@@ -62,7 +60,14 @@ export const orderRequestSchema = z.object({
   } else if (v.cityCode <= 0) {
     ctx.addIssue({ code: 'custom', path: ['cityCode'], message: 'Выберите город' })
   }
-})
+  if (!normalizePhone(v.phone, v.country)) {
+    ctx.addIssue({ code: 'custom', path: ['phone'], message: `Укажите номер: ${COUNTRIES[v.country].phoneExample}` })
+  }
+  // Беларусь — предоплата переводом: продавец пишет покупателю в Telegram.
+  if (COUNTRIES[v.country].payment === 'prepay' && !v.telegram) {
+    ctx.addIssue({ code: 'custom', path: ['telegram'], message: 'Укажите ник в Telegram — продавец напишет вам про оплату' })
+  }
+}).transform((v) => ({ ...v, phone: normalizePhone(v.phone, v.country) ?? v.phone }))
 
 /** Поля формы, ошибки по которым показываются под полем. Остальные — общей ошибкой формы. */
 export const ORDER_FORM_FIELDS = [
@@ -81,11 +86,19 @@ export const ORDER_FORM_FIELDS = [
 export type OrderRequest = z.input<typeof orderRequestSchema>
 export type OrderRequestParsed = z.output<typeof orderRequestSchema>
 
+/** Как и сколько платит покупатель: при получении (₽ или ₸) или переводом продавцу до отправки (₽). */
+export interface OrderPayment {
+  method: 'cod' | 'prepay'
+  currency: 'RUB' | 'KZT'
+  amount: number
+}
+
 export interface OrderResponse {
   number: string
   total: number
   /** Сколько заплатить при получении в пункте СДЭК. */
   payOnPickup: number
+  payment: OrderPayment
   /** Заказ создан в СДЭК: трек придёт покупателю по смс. false — заказ принят, продавец оформит доставку сам. */
   cdekCreated: boolean
 }
