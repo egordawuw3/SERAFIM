@@ -1,5 +1,7 @@
 # Выкладка SERAFIM на Cloudflare
 
+> **С 31.10.2026 сайт работает на своём сервере — см. [раздел 15](#15-свой-сервер-с-31102026).** Cloudflare Workers ниже — откат.
+
 Сайт работает на Cloudflare Workers (бесплатный тариф):
 
 - **Готовые страницы, фото и шрифты** Cloudflare отдаёт сам: быстро, без засыпания и без лимитов.
@@ -210,3 +212,21 @@ npx wrangler d1 execute serafim --remote --command "SELECT * FROM stock"
 # поставить остаток (поступление, отменённый заказ)
 npx wrangler d1 execute serafim --remote --command "UPDATE stock SET qty = 5 WHERE sku = 'SRF/HD/ONLYWAY/GREY/M'"
 ```
+
+## 15. Свой сервер (с 31.10.2026)
+
+Сайт работает на сервере `root@195.242.118.29` (ключ `~/.ssh/listing_bot`): в России Cloudflare режут, на айфонах сайт открывался через раз. На том же сервере — бот и панель Татьяны (`/opt/listing-bot`); их контейнеры, базу и `.env` не трогать.
+
+- **Сайт:** `/opt/serafim` — `compose.yaml` (из [deploy/server/compose.yaml](deploy/server/compose.yaml)), `.env` с секретами (СДЭК prod, Telegram), том `serafim_data`: `orders.jsonl` и `stock.json`. Наружу портов нет.
+- **HTTPS:** общий Caddy панели (`listing-bot-caddy-1`) импортирует `/opt/caddy-sites/*.caddy`; наш файл — `/opt/caddy-sites/serafim.caddy` ([deploy/server/serafim.caddy](deploy/server/serafim.caddy)), сеть `edge`. После правки файла: `docker exec listing-bot-caddy-1 caddy reload --config /etc/caddy/Caddyfile` (без перезапуска, панель не моргает).
+- **DNS (Cloudflare):** `A serafim6s.ru` и `A www` → `195.242.118.29`, прокси выключен (серое облако). AAAA не добавлять: IPv6 у сервера наружу не работает.
+- **Выкладка:** `deploy/server/deploy.sh` — собирает образ здесь (`docker buildx --platform linux/amd64`, нужен colima: `colima start`), загружает на сервер, перезапускает только сайт. Выкладка в main больше **не** обновляет сайт (Workers Builds выкладывает воркер-откат без доменов).
+- **Остатки вручную:** через бота (`/stock`) или на сервере в `stock.json` тома `serafim_data`.
+- **Мониторинг:** воркер `serafim-monitor` ([monitor/](monitor/)) раз в 5 минут проверяет `/api/health` и пишет в Telegram (`ALERT_CHAT_IDS`).
+
+**Откат на Cloudflare** (воркер `serafim` с D1 не удалён):
+1. Cloudflare → serafim6s.ru → DNS: удалить A-записи `serafim6s.ru` и `www`.
+2. Workers & Pages → serafim → Settings → Domains & Routes → Add → Custom domain: `serafim6s.ru` и `www.serafim6s.ru` (в `wrangler.jsonc` вернуть `routes`, чтобы следующая выкладка их не сняла).
+3. Заказы и остатки, изменившиеся на сервере, перенести в D1 (их немного: `docker run --rm -v serafim_data:/d alpine cat /d/stock.json`).
+
+**Откат версии сайта на сервере:** `docker tag serafim-site:<прошлый коммит> serafim-site:latest && cd /opt/serafim && docker compose up -d site` (`docker images serafim-site` — список).
