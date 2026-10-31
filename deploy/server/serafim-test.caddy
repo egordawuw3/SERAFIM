@@ -1,0 +1,5 @@
+# Временный адрес для проверки до переключения DNS: копия сайта со СДЭК в тестовом режиме.
+serafim.195-242-118-29.sslip.io {
+	encode zstd gzip
+	reverse_proxy serafim-test:3000
+}

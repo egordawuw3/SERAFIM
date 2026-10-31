@@ -17,6 +17,7 @@
     "cf:dev": "wrangler dev",
     "cf:deploy": "wrangler d1 migrations apply serafim --remote && wrangler deploy",
     "preflight": "node --env-file-if-exists=.env.preflight scripts/preflight.ts",
+    "import:d1": "node scripts/import-d1.ts",
     "bot:setup": "node --env-file-if-exists=.env.preflight scripts/bot-setup.ts"
   },
   "dependencies": {

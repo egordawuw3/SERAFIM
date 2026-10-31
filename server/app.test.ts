@@ -1,6 +1,6 @@
 import { mkdtempSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { join } from 'node:path'
+import { dirname, join } from 'node:path'
 import { beforeAll, describe, expect, it, vi } from 'vitest'
 import { orderTotals } from '../src/entities/order/model/pricing.ts'
 import { normalizeRuPhone, orderRequestSchema } from '../src/entities/order/model/schema.ts'
@@ -61,6 +61,8 @@ async function fakeFetch(input: string | URL | Request, init?: RequestInit): Pro
 
 beforeAll(async () => {
   vi.stubEnv('ORDERS_FILE', ordersFile)
+  // Файла остатков нет — в общих тестах размеры не ограничены (остатки проверяются отдельно).
+  vi.stubEnv('STOCK_FILE', join(dirname(ordersFile), 'stock.json'))
   vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
   vi.stubEnv('TRUST_PROXY', '1')
   vi.stubEnv('CDEK_ENV', 'test')
@@ -574,6 +576,22 @@ describe('stock', () => {
       { sku: 'A', qty: 3 },
       { sku: 'B', qty: 1 },
     ])
+  })
+})
+
+describe('stock file (Node server)', () => {
+  it('keeps stock on disk, takes it atomically and survives a restart', async () => {
+    const { fileStock } = await import('./stockFile.ts')
+    const file = join(mkdtempSync(join(tmpdir(), 'serafim-stock-')), 'stock.json')
+    expect(await fileStock(file).stock()).toEqual({})
+    const store = fileStock(file)
+    expect(await store.setStock('A', { qty: 2 })).toBe(2)
+    // Две покупки одновременно на последние две штуки и третья — лишняя.
+    const results = await Promise.all([1, 1, 1].map(() => store.takeStock([{ sku: 'A', qty: 1 }])))
+    expect(results.map((r) => r.ok)).toEqual([true, true, false])
+    expect(await fileStock(file).stock()).toEqual({ A: 0 })
+    expect(await store.setStock('A', { delta: 3 })).toBe(3)
+    expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ A: 3 })
   })
 })
 

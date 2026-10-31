@@ -1,0 +1,55 @@
+# SERAFIM на своём сервере (/opt/serafim): сайт и API в одном Node-контейнере.
+# Наружу портов нет: HTTPS делает общий Caddy (контейнер панели Татьяны), он ходит сюда по сети edge
+# (docker network create edge; настройка сайта — /opt/caddy-sites/serafim.caddy).
+#   docker compose up -d                       — сайт
+#   docker compose --profile test up -d        — проверочная копия: СДЭК в тестовом режиме, свои данные
+name: serafim
+
+x-site: &site
+  image: serafim-site:latest
+  environment:
+    # Перед сайтом один прокси — Caddy: IP покупателя берём из X-Forwarded-For.
+    TRUST_PROXY: "1"
+  mem_limit: 256m
+  healthcheck:
+    test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/api/health').then((r) => process.exit(r.ok ? 0 : 1), () => process.exit(1))"]
+    interval: 1m
+    timeout: 10s
+    start_period: 20s
+    retries: 3
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+services:
+  site:
+    <<: *site
+    env_file: .env
+    volumes:
+      # Заказы (orders.jsonl) и остатки (stock.json).
+      - data:/app/data
+    networks:
+      edge:
+        aliases: [serafim-site]
+    restart: unless-stopped
+
+  site-test:
+    <<: *site
+    profiles: [test]
+    env_file: .env.test
+    volumes:
+      - test-data:/app/data
+    networks:
+      edge:
+        aliases: [serafim-test]
+    restart: "no"
+
+networks:
+  edge:
+    external: true
+
+volumes:
+  data:
+  test-data:

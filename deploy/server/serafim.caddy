@@ -1,0 +1,12 @@
+# SERAFIM: https://serafim6s.ru, www — на основной адрес. Подключается в общий Caddy через
+# import /etc/caddy/sites/*.caddy (файл на сервере: /opt/caddy-sites/serafim.caddy).
+# Заголовки безопасности и кеш ставит сам сайт (server/securityHeaders.ts).
+serafim6s.ru {
+	encode zstd gzip
+	header -Server
+	reverse_proxy serafim-site:3000
+}
+
+www.serafim6s.ru {
+	redir https://serafim6s.ru{uri} permanent
+}
