@@ -103,7 +103,9 @@ export interface TelegramConfig {
 
 interface InlineButton {
   text: string
-  callback_data: string
+  /** Кнопка-действие (ответ приходит боту) или ссылка — одно из двух. */
+  callback_data?: string
+  url?: string
 }
 export type InlineKeyboard = InlineButton[][]
 

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { handleBotUpdate, parseStockCommand, type BotPlatform } from './bot.ts'
 import { memoryStock } from './stock.ts'
+import { memoryWaitlist } from './waitlist.ts'
 
 const ADMIN = 1860235658
 const ONLY_WAY_M = 'SRF/HD/ONLYWAY/GREY/M'
@@ -23,6 +24,7 @@ function platform(stock: Record<string, number> = { [ONLY_WAY_M]: 7 }): BotPlatf
   return {
     telegram: { token: 't', chatId: String(ADMIN), webhookSecret: 's' },
     ...memoryStock(stock),
+    waitlist: memoryWaitlist(),
   }
 }
 
@@ -31,11 +33,11 @@ const press = (data: string, from = ADMIN) => ({ callback_query: { id: 'q', from
 const sent = () => calls.filter((c) => c.method === 'sendMessage').map((c) => String(c.body.text))
 
 describe('bot: access', () => {
-  it('ignores messages from anyone but the seller', async () => {
+  it('does not let anyone but the seller change stock — only explains what the bot is for', async () => {
     const p = platform()
     await handleBotUpdate(message('The only way M 0', 42), p)
-    expect(calls).toEqual([])
     expect((await p.stock())[ONLY_WAY_M]).toBe(7)
+    expect(sent()).toEqual([expect.stringContaining('Сообщить о поступлении')])
   })
 
   it('obeys helpers from adminIds and replies to their own chat', async () => {
@@ -126,5 +128,58 @@ describe('bot: webhook', () => {
     expect((await post('s')).status).toBe(200)
     await Promise.all(tasks)
     expect((await p.stock())[ONLY_WAY_M]).toBe(1)
+  })
+})
+
+describe('bot: waitlist', () => {
+  const START = '/start w_p2_grey_M'
+
+  it('buyer subscribes to a sold-out size and hears when the seller adds it back', async () => {
+    const p = platform({ [ONLY_WAY_M]: 0 })
+    await handleBotUpdate(message(START, 501), p)
+    await handleBotUpdate(message(START, 501), p) // повторное нажатие — без дубля
+    await handleBotUpdate(message(START, 502), p)
+    expect(sent().at(-1)).toContain('Напишу сюда')
+    expect(await p.waitlist!.counts()).toEqual({ [ONLY_WAY_M]: 2 })
+
+    // Продавец видит, сколько ждут.
+    calls = []
+    await handleBotUpdate(message('/stock'), p)
+    expect(JSON.stringify(calls)).toContain('M: 0 шт. · ждут 2')
+
+    calls = []
+    await handleBotUpdate(message('The only way M 3'), p)
+    const notices = calls.filter((c) => c.method === 'sendMessage' && c.body.chat_id !== ADMIN)
+    expect(notices.map((c) => c.body.chat_id)).toEqual([501, 502])
+    expect(String(notices[0].body.text)).toContain('снова в наличии')
+    expect(JSON.stringify(notices[0].body.reply_markup)).toContain('https://serafim6s.ru/product/the-only-way-hoodie?color=grey')
+    expect(sent().at(-1)).toContain('Сообщил о поступлении: 2')
+    // Уведомление — один раз.
+    expect(await p.waitlist!.counts()).toEqual({})
+  })
+
+  it('a size that is in stock is not subscribed to — the buyer gets a link instead', async () => {
+    const p = platform({ [ONLY_WAY_M]: 2 })
+    await handleBotUpdate(message(START, 501), p)
+    expect(sent().at(-1)).toContain('уже есть в наличии')
+    expect(await p.waitlist!.counts()).toEqual({})
+  })
+
+  it('unsubscribe button works for the buyer', async () => {
+    const p = platform({ [ONLY_WAY_M]: 0 })
+    await handleBotUpdate(message(START, 501), p)
+    await handleBotUpdate(press('u:w_p2_grey_M', 501), p)
+    expect(await p.waitlist!.counts()).toEqual({})
+  })
+
+  it('the waitlist file survives a restart', async () => {
+    const { mkdtempSync } = await import('node:fs')
+    const { tmpdir } = await import('node:os')
+    const { join } = await import('node:path')
+    const { fileWaitlist } = await import('./waitlist.ts')
+    const file = join(mkdtempSync(join(tmpdir(), 'serafim-wait-')), 'waitlist.json')
+    await fileWaitlist(file).add(ONLY_WAY_M, 501)
+    expect(await fileWaitlist(file).take(ONLY_WAY_M)).toEqual([501])
+    expect(await fileWaitlist(file).counts()).toEqual({})
   })
 })

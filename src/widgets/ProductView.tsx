@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { MOCKUP_DISCLAIMER } from '@/entities/product/model/catalog'
 import { useSearchParams } from 'react-router'
-import { isColorSoldOut } from '@/entities/product/lib/availability'
+import { isColorSoldOut, isSizeAvailable } from '@/entities/product/lib/availability'
+import { waitlistLink } from '@/entities/product/lib/waitlist'
 import { useStock } from '@/entities/product/model/stock'
 import { useProductSelection } from '@/entities/product/lib/useProductSelection'
 import type { Product } from '@/entities/product/model/types'
@@ -26,6 +27,8 @@ export function ProductView({ product }: { product: Product }) {
   const { color, size, selectColor, selectSize } = useProductSelection(product, (isClient && params.get('color')) || undefined)
   useStock((s) => s.left) // перерисовка, когда пришли остатки
   const colorSoldOut = isColorSoldOut(product, color)
+  // Закончившиеся размеры — для листа ожидания (ссылка на бота).
+  const soldOutSizes = product.sizes.filter((s) => !isSizeAvailable(color, s))
   // «Купить на Авито»: ссылка на товар, иначе на профиль продавца, иначе кнопки нет.
   const avitoUrl = product.avitoUrl || site.avitoProfileUrl
   const [added, setAdded] = useState(false)
@@ -67,6 +70,24 @@ export function ProductView({ product }: { product: Product }) {
             <p>
               <span className="text-ink/70">Размер: </span>
               <span className="text-ink">{product.sizes[0] === 'ONE SIZE' ? 'единый' : product.sizes[0]}</span>
+            </p>
+          )}
+          {soldOutSizes.length > 0 && (
+            <p className="leading-relaxed text-ink/70">
+              {product.sizes.length > 1 ? 'Нет вашего размера? ' : ''}Сообщим в Telegram, когда появится:{' '}
+              {soldOutSizes.map((s, i) => (
+                <span key={s}>
+                  {i > 0 && ', '}
+                  <a
+                    href={waitlistLink(product.id, color.id, s)}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="tap-target text-ink underline underline-offset-4 hover:opacity-70"
+                  >
+                    {product.sizes.length > 1 ? s : 'сообщить о поступлении'}
+                  </a>
+                </span>
+              ))}
             </p>
           )}
         </div>

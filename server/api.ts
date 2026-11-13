@@ -36,6 +36,7 @@ import {
 import { createRateLimiter } from './rateLimit.ts'
 import { SECURITY_HEADERS } from './securityHeaders.ts'
 import { mergeStockLines, type StockStore } from './stock.ts'
+import type { WaitlistStore } from './waitlist.ts'
 import { handleBotUpdate } from './bot.ts'
 import { formatOrderMessage, sendToTelegram, type TelegramConfig } from './telegram.ts'
 
@@ -44,6 +45,8 @@ import { formatOrderMessage, sendToTelegram, type TelegramConfig } from './teleg
  * передаётся снаружи: Node-сервер (app.ts, Docker) пишет в файл, Cloudflare (worker.ts) — в базу D1.
  */
 export interface ApiPlatform extends StockStore {
+  /** Лист ожидания размеров (бот); нет — выключен. */
+  waitlist?: WaitlistStore
   /** Адрес сайта, например https://serafim.ru. Если задан — изменяющие запросы с другим Origin отклоняются. */
   siteOrigin: string
   telegram: TelegramConfig

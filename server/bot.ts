@@ -1,31 +1,47 @@
+import { waitlistToken } from '../src/entities/product/lib/waitlist.ts'
 import { products } from '../src/entities/product/model/catalog.ts'
 import type { Product, Size } from '../src/entities/product/model/types.ts'
 import { sizeLabel } from './order.ts'
 import type { StockStore } from './stock.ts'
 import { telegramCall, type InlineKeyboard, type TelegramConfig } from './telegram.ts'
+import type { WaitlistStore } from './waitlist.ts'
 
 /*
  * Бот продавца (@Serafim_orders_bot): остатки по размерам.
  * Команды принимаются только от продавца (TelegramConfig.chatId) и помощников (adminIds) — остальным бот не отвечает.
  *   /stock (или «остатки») — по карточке на товар: у каждого размера остаток и кнопки −1 / +1;
  *   «The only way M 5» — поставить остаток, «The only way M +3» / «-1» — изменить, «Рюкзак 10» — для товара без размеров.
+ * Покупателям — лист ожидания: /start w_<товар>_<цвет>_<размер> (ссылка «Сообщить о поступлении» на сайте);
+ * когда продавец снова добавит размер, бот пишет всем, кто ждал.
  */
 
 export interface BotPlatform extends StockStore {
   telegram: TelegramConfig
+  /** Адрес сайта для ссылок в уведомлениях; пусто — https://serafim6s.ru. */
+  siteOrigin?: string
+  /** Нет — лист ожидания выключен (воркер Cloudflare). */
+  waitlist?: WaitlistStore
 }
 
 interface Article {
   sku: string
+  /** Код размера в ссылке на бота (лист ожидания). */
+  token: string
   product: Product
+  colorId: string
   size: Size
 }
 
 /** Все артикулы каталога: цвет × размер (тот же SKU, что в заказе и в таблице stock). */
 const ARTICLES: Article[] = products.flatMap((product) =>
-  product.colors.flatMap((color) => product.sizes.map((size) => ({ sku: `${color.sku}/${size}`, product, size }))),
+  product.colors.flatMap((color) =>
+    product.sizes.map((size) => ({ sku: `${color.sku}/${size}`, token: waitlistToken(product.id, color.id, size), product, colorId: color.id, size })),
+  ),
 )
 const articleBySku = new Map(ARTICLES.map((a) => [a.sku, a]))
+const articleByToken = new Map(ARTICLES.map((a) => [a.token, a]))
+
+const sizeText = (a: Article) => (a.product.sizes.length > 1 ? `, размер ${a.size}` : '')
 
 const escapeHtml = (s: string) => s.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
 
@@ -44,13 +60,13 @@ const HELP = [
 
 // ---------- карточка остатков товара ----------
 
-function stockCard(product: Product, left: Record<string, number>): { text: string; keyboard: InlineKeyboard } {
+function stockCard(product: Product, left: Record<string, number>, waiting: Record<string, number> = {}): { text: string; keyboard: InlineKeyboard } {
   const articles = ARTICLES.filter((a) => a.product === product)
   const tracked = articles.filter((a) => a.sku in left)
   const lines = [`<b>${escapeHtml(product.name)}</b>`]
   if (!tracked.length) lines.push(`Остаток не ведётся — продаётся без ограничений. Чтобы вести: «${escapeHtml(product.name)}${product.sizes.length > 1 ? ' M' : ''} 10».`)
   const keyboard: InlineKeyboard = tracked.map((a) => [
-    { text: `${sizeLabel(a.size)}: ${left[a.sku]} шт.`, callback_data: 'n' },
+    { text: `${sizeLabel(a.size)}: ${left[a.sku]} шт.${waiting[a.sku] ? ` · ждут ${waiting[a.sku]}` : ''}`, callback_data: 'n' },
     { text: '−1', callback_data: `d:${a.sku}:-1` },
     { text: '+1', callback_data: `d:${a.sku}:1` },
   ])
@@ -99,6 +115,37 @@ export function parseStockCommand(text: string): Parsed | null {
   return { article, change }
 }
 
+// ---------- лист ожидания ----------
+
+const productUrl = (p: BotPlatform, a: Article) =>
+  `${p.siteOrigin || 'https://serafim6s.ru'}/product/${a.product.slug}?color=${a.colorId}`
+
+/** Размер снова появился (было 0) — пишем всем, кто ждал. Возвращает, скольким написали. */
+async function notifyWaiters(p: BotPlatform, a: Article, before: number | undefined, now: number): Promise<number> {
+  if (!p.waitlist || before !== 0 || now <= 0) return 0
+  const chats = await p.waitlist.take(a.sku)
+  let sent = 0
+  for (const chatId of chats) {
+    // Кто-то мог остановить бота — его пропускаем, остальным пишем.
+    await telegramCall(
+      'sendMessage',
+      {
+        chat_id: chatId,
+        text: `🔔 <b>${escapeHtml(a.product.name)}</b>${sizeText(a)} снова в наличии!`,
+        parse_mode: 'HTML',
+        reply_markup: { inline_keyboard: [[{ text: 'Открыть на сайте', url: productUrl(p, a) }]] },
+      },
+      p.telegram.token,
+    ).then(
+      () => sent++,
+      () => {},
+    )
+  }
+  return sent
+}
+
+const notifiedNote = (n: number) => (n ? `\n🔔 Сообщил о поступлении: ${n}` : '')
+
 // ---------- обработка обновлений Telegram ----------
 
 interface Update {
@@ -116,18 +163,34 @@ export async function handleBotUpdate(raw: unknown, p: BotPlatform): Promise<voi
     call('sendMessage', { chat_id: msg?.chat?.id, text, parse_mode: 'HTML', ...(keyboard?.length ? { reply_markup: { inline_keyboard: keyboard } } : {}) })
 
   if (msg) {
-    if (!isAdmin(msg.from?.id) || msg.chat?.id !== msg.from?.id || !msg.text) {
-      // Чужим не отвечаем, но id пишем в лог — так проще добавить помощника (TELEGRAM_ADMIN_IDS).
-      console.info('[bot] команда не от продавца, id', msg.from?.id)
-      return
-    }
+    if (msg.chat?.id !== msg.from?.id || !msg.text || msg.from?.id === undefined) return
     const text = msg.text.trim()
+    // Лист ожидания — для всех: /start w_p2_grey_M из ссылки «Сообщить о поступлении».
+    const wait = /^\/start\s+(w_\w+)$/.exec(text)
+    if (wait) {
+      const a = articleByToken.get(wait[1])
+      if (!a || !p.waitlist) return reply('Такой вещи больше нет в каталоге. Все вещи — на сайте serafim6s.ru')
+      const left = (await p.stock())[a.sku]
+      if (left === undefined || left > 0) {
+        return reply(`<b>${escapeHtml(a.product.name)}</b>${sizeText(a)} уже есть в наличии.`, [[{ text: 'Открыть на сайте', url: productUrl(p, a) }]])
+      }
+      await p.waitlist.add(a.sku, msg.from.id)
+      return reply(`Готово! Напишу сюда, как только <b>${escapeHtml(a.product.name)}</b>${sizeText(a)} снова появится.`, [
+        [{ text: 'Отписаться', callback_data: `u:${a.token}` }],
+      ])
+    }
+    if (!isAdmin(msg.from.id)) {
+      // Чужим про остатки не отвечаем, но id пишем в лог — так проще добавить помощника (TELEGRAM_ADMIN_IDS).
+      console.info('[bot] команда не от продавца, id', msg.from.id)
+      return reply('Это бот магазина SERAFIM. Чтобы узнать, когда появится нужный размер, нажмите «Сообщить о поступлении» на странице вещи: serafim6s.ru')
+    }
     const command = text.toLowerCase().replace(/^\//, '').replace(/@\w+$/, '')
     if (['start', 'help', 'помощь'].includes(command)) return reply(HELP)
     if (['stock', 'остатки', 'склад'].includes(command)) {
       const left = await p.stock()
+      const waiting = (await p.waitlist?.counts()) ?? {}
       for (const product of products) {
-        const card = stockCard(product, left)
+        const card = stockCard(product, left, waiting)
         await reply(card.text, card.keyboard)
       }
       return
@@ -137,28 +200,41 @@ export async function handleBotUpdate(raw: unknown, p: BotPlatform): Promise<voi
     if ('error' in parsed) return reply(parsed.error)
     const before = (await p.stock())[parsed.article.sku]
     const now = await p.setStock(parsed.article.sku, parsed.change)
+    const notified = await notifyWaiters(p, parsed.article, before, now)
     return reply(
-      `${escapeHtml(parsed.article.product.name)}, ${sizeLabel(parsed.article.size)}: <b>${now} шт.</b>${before === undefined ? '' : ` (было ${before})`}`,
+      `${escapeHtml(parsed.article.product.name)}, ${sizeLabel(parsed.article.size)}: <b>${now} шт.</b>${before === undefined ? '' : ` (было ${before})`}${notifiedNote(notified)}`,
     )
   }
 
   const cb = update.callback_query
   if (!cb) return
   const answer = (text?: string) => call('answerCallbackQuery', { callback_query_id: cb.id, ...(text ? { text } : {}) })
-  if (!isAdmin(cb.from?.id)) return answer('Бот работает только для продавца')
   const chatId = cb.message?.chat?.id
   const messageId = cb.message?.message_id
   const setKeyboard = (keyboard: InlineKeyboard) =>
     call('editMessageReplyMarkup', { chat_id: chatId, message_id: messageId, reply_markup: { inline_keyboard: keyboard } })
   const data = cb.data ?? ''
 
+  // Отписка от листа ожидания — кнопка под подтверждением подписки, для всех.
+  const unsubscribe = /^u:(w_\w+)$/.exec(data)
+  if (unsubscribe) {
+    const a = articleByToken.get(unsubscribe[1])
+    if (a && p.waitlist && cb.from?.id !== undefined) await p.waitlist.remove(a.sku, cb.from.id)
+    await setKeyboard([])
+    return answer('Вы отписались')
+  }
+
+  if (!isAdmin(cb.from?.id)) return answer('Бот работает только для продавца')
+
   const delta = /^d:(.+):(-?1)$/.exec(data)
   if (delta) {
     const article = articleBySku.get(delta[1])
     if (!article) return answer('Такого товара больше нет')
+    const before = (await p.stock())[article.sku]
     const now = await p.setStock(article.sku, { delta: Number(delta[2]) })
-    await setKeyboard(stockCard(article.product, await p.stock()).keyboard)
-    return answer(`${sizeLabel(article.size)}: ${now} шт.`)
+    const notified = await notifyWaiters(p, article, before, now)
+    await setKeyboard(stockCard(article.product, await p.stock(), (await p.waitlist?.counts()) ?? {}).keyboard)
+    return answer(`${sizeLabel(article.size)}: ${now} шт.${notified ? ` · сообщил ждавшим: ${notified}` : ''}`)
   }
 
   return answer()

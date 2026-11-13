@@ -10,6 +10,8 @@ export const site = {
     telegramChannel: 'https://t.me/serafim6s',
     /** Личный Telegram Серафима — для вопросов покупателей. */
     supportTelegram: 'https://t.me/sheriff_6s',
+    /** Бот магазина (заказы продавцу, лист ожидания для покупателей) — без @. */
+    ordersBot: 'Serafim_orders_bot',
     phone: '+7 920 182-53-11',
     email: 'serafimsafronov09@gmail.com',
   },
@@ -74,7 +76,7 @@ export const site = {
     shipInStockDays: 5,
     shipPreorderDays: 30,
     /** Дата редакции юридических текстов. */
-    documentsDate: '26 октября 2026 г.',
+    documentsDate: '13 ноября 2026 г.',
     /**
      * Сколько дней сервер хранит персональные данные заказа, который не удалось передать в СДЭК и продавцу.
      * Одно значение для политики конфиденциальности и для чистки на сервере.

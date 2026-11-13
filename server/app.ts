@@ -9,6 +9,7 @@ import { config } from './config.ts'
 import { createRateLimiter } from './rateLimit.ts'
 import { CACHE_RULES } from './securityHeaders.ts'
 import { fileStock } from './stockFile.ts'
+import { fileWaitlist } from './waitlist.ts'
 import { saveOrder } from './storage.ts'
 
 const allow = createRateLimiter(config.rateLimit)
@@ -39,6 +40,7 @@ export const app = createApi({
   allowOrder: (ip) => allow(ip),
   saveOrder,
   ...fileStock(config.stockFile),
+  waitlist: fileWaitlist(config.waitlistFile),
 })
 
 // Продакшен: отдаём собранный фронтенд. Каждая страница — готовый HTML из пререндера (dist/<путь>/index.html,

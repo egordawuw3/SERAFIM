@@ -17,6 +17,8 @@ export const config = {
   ordersFile: resolve(env.ORDERS_FILE ?? 'data/orders.jsonl'),
   /** Остатки по размерам (JSON); нет файла — остатки не ведутся. */
   stockFile: resolve(env.STOCK_FILE ?? 'data/stock.json'),
+  /** Лист ожидания размеров: id чатов Telegram до уведомления или отписки. */
+  waitlistFile: resolve(env.WAITLIST_FILE ?? 'data/waitlist.json'),
   /** Сколько дней хранить заявки (в политике конфиденциальности — не дольше 3 лет). */
   ordersRetentionDays: Math.max(1, Number(env.ORDERS_RETENTION_DAYS) || ORDER_RETENTION_DAYS),
   telegram: {

@@ -63,6 +63,7 @@ beforeAll(async () => {
   vi.stubEnv('ORDERS_FILE', ordersFile)
   // Файла остатков нет — в общих тестах размеры не ограничены (остатки проверяются отдельно).
   vi.stubEnv('STOCK_FILE', join(dirname(ordersFile), 'stock.json'))
+  vi.stubEnv('WAITLIST_FILE', join(dirname(ordersFile), 'waitlist.json'))
   vi.stubEnv('TELEGRAM_BOT_TOKEN', '')
   vi.stubEnv('TRUST_PROXY', '1')
   vi.stubEnv('CDEK_ENV', 'test')
