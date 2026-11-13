@@ -101,8 +101,9 @@ describe('POST /api/orders', () => {
     expect(res.status).toBe(201)
     const data = (await res.json()) as { number: string; total: number; payOnPickup: number; cdekCreated: boolean }
     expect(data.number).toMatch(/^SRF-\d{6}-[0-9A-F]{4}$/)
-    // 4 200 ₽ за худи + 411 ₽ доставки (СДЭК вернул 281.4 → 282, +10 % наценки → 311, +100 ₽ резерв на возвраты).
-    expect(data).toMatchObject({ total: 4611, payOnPickup: 4611, cdekCreated: true })
+    // 4 200 ₽ за худи + 411 ₽ доставки (СДЭК вернул 281.4 → 282, +10 % наценки → 311, +100 ₽ резерв на возвраты)
+    // + 222 ₽ комиссии за наложенный платёж (4 200 / 0,95 = 4 422).
+    expect(data).toMatchObject({ total: 4833, payOnPickup: 4833, cdekCreated: true })
 
     const saved = lastSaved()
     expect(saved.customer.phone).toBe('+79991234567')
@@ -117,7 +118,8 @@ describe('POST /api/orders', () => {
     expect(sent.shipment_point).toBe('MSK65')
     expect(sent.delivery_point).toBe('KZN3')
     expect(sent.delivery_recipient_cost.value).toBe(411)
-    expect(sent.packages[0].items[0].payment.value).toBe(4200)
+    // Оплата за вещь — с комиссией, объявленная стоимость (страховка) — цена.
+    expect(sent.packages[0].items[0]).toMatchObject({ payment: { value: 4422 }, cost: 4200 })
   })
 
   it('ships several items as one parcel with cash on delivery for each', async () => {
@@ -132,14 +134,14 @@ describe('POST /api/orders', () => {
       '1.1.1.10',
     )
     expect(res.status).toBe(201)
-    // 2 × 4 200 + 3 700 + 411 доставки.
-    expect(((await res.json()) as { total: number }).total).toBe(12511)
+    // 2 × 4 200 + 3 700 + 411 доставки + комиссия 2 × 222 + 195.
+    expect(((await res.json()) as { total: number }).total).toBe(13150)
     const sent = cdekOrders.at(-1) as { packages: { weight: number; length: number; height: number; items: { amount: number; payment: { value: number } }[] }[] }
     // Худи — упаковка по умолчанию 600 г, 40×30×10; рюкзак — 500 г, 40×30×10: стопкой 40 × 30 × (10·2 + 10).
     expect(sent.packages[0]).toMatchObject({ weight: 1700, length: 40, height: 30 })
     expect(sent.packages[0].items.map((i) => [i.amount, i.payment.value])).toEqual([
-      [2, 4200],
-      [1, 3700],
+      [2, 4422],
+      [1, 3895],
     ])
   })
 
@@ -196,8 +198,8 @@ describe('POST /api/orders', () => {
   it('try-on: fee added to delivery, CDEK fitting and partial buyout, only points with a fitting room', async () => {
     const res = await post({ ...validOrder, tryOn: true }, '1.2.0.6')
     expect(res.status).toBe(201)
-    // 4 200 + 411 доставки + 400 примерка.
-    expect(await res.json()).toMatchObject({ total: 5011 })
+    // 4 200 + 411 доставки + 400 примерка + 222 комиссия.
+    expect(await res.json()).toMatchObject({ total: 5233 })
     const sent = cdekOrders.at(-1) as { services?: { code: string }[]; delivery_recipient_cost: { value: number } }
     expect(sent.services).toEqual([{ code: 'TRYING_ON' }, { code: 'PART_DELIV' }])
     expect(sent.delivery_recipient_cost.value).toBe(811)
@@ -213,15 +215,15 @@ describe('POST /api/orders', () => {
     const kz = { ...validOrder, country: 'KZ', cityCode: 4756, pointCode: 'ALM1', phone: '+7 701 123 45 67' }
     const res = await post(kz, '1.2.0.1')
     expect(res.status).toBe(201)
-    // Худи 4 200 ₽ → 4 200 × 6,667 × 1,03 = 28 840 ₸; доставка 411 ₽ → 2 830 ₸ (вверх до 10 ₸).
-    expect(((await res.json()) as { payment: unknown }).payment).toEqual({ method: 'cod', currency: 'KZT', amount: 31670 })
+    // Худи 4 200 ₽ + комиссия → 4 422 ₽ × 6,667 × 1,03 = 30 370 ₸; доставка 411 ₽ → 2 830 ₸ (вверх до 10 ₸).
+    expect(((await res.json()) as { payment: unknown }).payment).toEqual({ method: 'cod', currency: 'KZT', amount: 33200 })
     const sent = cdekOrders.at(-1) as { delivery_recipient_cost: { value: number }; packages: { items: { payment: { value: number }; cost: number }[] }[] }
     expect(sent.delivery_recipient_cost.value).toBe(2830)
-    expect(sent.packages[0].items[0]).toMatchObject({ payment: { value: 28840 }, cost: 4200 })
-    expect(lastSaved()).toMatchObject({ country: 'KZ', customer: { phone: '+77011234567' }, payment: { currency: 'KZT', amount: 31670 } })
+    expect(sent.packages[0].items[0]).toMatchObject({ payment: { value: 30370 }, cost: 4200 })
+    expect(lastSaved()).toMatchObject({ country: 'KZ', customer: { phone: '+77011234567' }, payment: { currency: 'KZT', amount: 33200 } })
 
     const quote = await app.request('/api/cdek/quote?city=4756&items=p2:1&country=KZ', { headers: { 'x-forwarded-for': '4.4.4.5' } })
-    expect(((await quote.json()) as { payment: unknown }).payment).toEqual({ method: 'cod', currency: 'KZT', amount: 31670 })
+    expect(((await quote.json()) as { payment: unknown }).payment).toEqual({ method: 'cod', currency: 'KZT', amount: 33200 })
 
     // Пункт в другой стране — нельзя выбрать «Казахстан» с российским пунктом.
     const wrong = await post({ ...kz, cityCode: 424, pointCode: 'KZN3' }, '1.2.0.2')
@@ -295,7 +297,7 @@ describe('CDEK lookups', () => {
       totals: { total: number }
     }
     expect(quote.quote).toMatchObject({ sum: 411, periodMin: 8 })
-    expect(quote.totals.total).toBe(4611)
+    expect(quote.totals.total).toBe(4833)
 
     expect((await get('/api/cdek/quote?items=zzz:1&city=424')).status).toBe(400)
     expect((await get('/api/cdek/quote?items=p2:99&city=424')).status).toBe(400)
@@ -395,9 +397,15 @@ describe('rateLimitKey', () => {
 })
 
 describe('order totals', () => {
-  it('adds delivery and splits prepayment from cash on pickup', () => {
-    expect(orderTotals(4500, 282)).toEqual({ goods: 4500, delivery: 282, total: 4782, prepayment: 0, payOnPickup: 4782 })
-    expect(orderTotals(7800, 300, 1000)).toEqual({ goods: 7800, delivery: 300, total: 8100, prepayment: 1000, payOnPickup: 7100 })
+  it('adds delivery and splits prepayment from cash on pickup', async () => {
+    expect(orderTotals(4500, 282)).toEqual({ goods: 4500, delivery: 282, codFee: 0, total: 4782, prepayment: 0, payOnPickup: 4782 })
+    expect(orderTotals(7800, 300, 1000)).toEqual({ goods: 7800, delivery: 300, codFee: 0, total: 8100, prepayment: 1000, payOnPickup: 7100 })
+    expect(orderTotals(4200, 411, 0, 222)).toMatchObject({ codFee: 222, total: 4833, payOnPickup: 4833 })
+    // Комиссия СДЭК 5 % удерживается с того, что заплатил покупатель: после неё продавцу доходит полная цена.
+    const { codFeePerUnit, codFeeFor } = await import('../src/entities/order/model/pricing.ts')
+    expect([codFeePerUnit(3700, 5), codFeePerUnit(4200, 5), codFeePerUnit(4200, 0)]).toEqual([195, 222, 0])
+    expect(Math.floor((4200 + 222) * 0.95)).toBeGreaterThanOrEqual(4200)
+    expect(codFeeFor([{ price: 4200, qty: 2 }, { price: 3700, qty: 1 }], 5)).toBe(639)
     // Предоплата не может превысить сумму заказа и не бывает отрицательной.
     expect(orderTotals(100, 0, 500).payOnPickup).toBe(0)
     expect(orderTotals(100, 0, -5).prepayment).toBe(0)

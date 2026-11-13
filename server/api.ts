@@ -3,7 +3,6 @@ import { bodyLimit } from 'hono/body-limit'
 import { createMiddleware } from 'hono/factory'
 import { HTTPException } from 'hono/http-exception'
 import { COUNTRIES, type CountryCode } from '../src/entities/order/model/countries.ts'
-import { orderTotals } from '../src/entities/order/model/pricing.ts'
 import {
   ORDER_FORM_FIELDS,
   orderRequestSchema,
@@ -23,6 +22,8 @@ import {
   canAnonymizeNow,
   createOrder,
   orderPayment,
+  codItems,
+  totalsFor,
   OrderValidationError,
   packageFor,
   resolveItems,
@@ -221,10 +222,10 @@ export function createApi(platform: ApiPlatform): Hono {
     try {
       const country = countryParam(c)
       const quote = await quoteFor(known, city)
-      const goods = known.reduce((sum, l) => sum + l.product.price * l.qty, 0)
-      const totals = orderTotals(goods, quote.sum, site.shipping.prepaymentAmount)
+      const lineItems = known.map((l) => ({ price: l.product.price, qty: l.qty }))
+      const totals = totalsFor(country, lineItems, quote.sum)
       const rate = COUNTRIES[country].currency === 'KZT' ? await kztPerRub() : undefined
-      const { method, currency, amount } = orderPayment(country, known.map((l) => ({ price: l.product.price, qty: l.qty })), totals, rate)
+      const { method, currency, amount } = orderPayment(country, lineItems, totals, rate)
       return c.json({ quote, totals, payment: { method, currency, amount } })
     } catch (err) {
       console.error('[cdek] quote', err)
@@ -396,7 +397,7 @@ export function createApi(platform: ApiPlatform): Hono {
     const needsRate = COUNTRIES[input.country].currency === 'KZT'
     if (cdek && delivery.quote && !prepay && (!needsRate || kztRate)) {
       // Наложенный платёж — в валюте страны получателя (Казахстан — тенге).
-      const cod = codAmounts(items, order.totals.delivery, kztRate)
+      const cod = codAmounts(codItems(items, input.country), order.totals.delivery, kztRate)
       try {
         const uuid = await cdek.createOrder({
           number: order.number,

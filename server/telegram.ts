@@ -66,6 +66,7 @@ export function formatOrderMessage(order: Order, { withCustomer = true } = {}): 
     quote
       ? `Доставка СДЭК: ${rub(quote.sum)}${quote.periodMax ? `, ${quote.periodMin}–${quote.periodMax} дн.` : ''}`
       : 'Доставка СДЭК: не рассчитана — уточните с покупателем',
+    totals.codFee ? `Комиссия за оплату при получении: ${rub(totals.codFee)}` : null,
     delivery.tryOn ? `👕 С примеркой (+${rub(delivery.tryOn.fee)}): покупатель оплатит только то, что подошло. Невыкупленное вернётся — добавьте в /stock.` : null,
     `<b>Итого: ${rub(totals.total)}</b> — ${pay}`,
     '',

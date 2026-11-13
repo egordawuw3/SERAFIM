@@ -12,7 +12,7 @@ import {
 import { OrderSubmitError, submitOrder } from '@/entities/order/api/orderApi'
 import { MAX_ITEM_QTY } from '@/entities/order/model/limits'
 import { COUNTRIES, COUNTRY_CODES, type CountryCode } from '@/entities/order/model/countries'
-import { orderTotals } from '@/entities/order/model/pricing'
+import { codFeeFor, orderTotals } from '@/entities/order/model/pricing'
 import { MANUAL_POINT, orderRequestSchema, type OrderPayment, type OrderRequest } from '@/entities/order/model/schema'
 import { getProductBySlug } from '@/entities/product/api/productApi'
 import { findColor, isSizeAvailable } from '@/entities/product/lib/availability'
@@ -190,7 +190,9 @@ export function CheckoutPage() {
 
   const tryOnFee = tryOn && !manual ? site.shipping.tryOn.fee : 0
   const deliverySum = quote ? quote.sum + tryOnFee : 0
-  const totals = orderTotals(subtotal(items), deliverySum, site.shipping.prepaymentAmount)
+  // Комиссия СДЭК за оплату при получении — отдельной строкой, чтобы цена вещи на сайте и в пункте выдачи совпадала.
+  const codFee = prepay ? 0 : codFeeFor(items, site.shipping.codCommissionPercent)
+  const totals = orderTotals(subtotal(items), deliverySum, site.shipping.prepaymentAmount, codFee)
   const selectedPoint = points?.find((p) => p.code === pointCode) ?? null
 
   async function onSubmit(e: FormEvent) {
@@ -468,6 +470,7 @@ export function CheckoutPage() {
           <dl className="space-y-2 border-b border-ink/10 pb-5">
             <Row label={`Товары · ${countItems(items)} шт.`} value={formatPrice(totals.goods)} />
             <Row label={tryOn ? 'Доставка СДЭК с примеркой' : 'Доставка СДЭК'} value={quote ? formatPrice(deliverySum) : '—'} />
+            {codFee > 0 && <Row label="Комиссия за оплату при получении" value={formatPrice(codFee)} />}
             {selectedPoint && <p className="text-[11px] leading-relaxed text-ink/70">Пункт: {selectedPoint.address}</p>}
           </dl>
           <div className="flex justify-between pt-5 text-[14px]">

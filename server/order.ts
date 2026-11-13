@@ -2,7 +2,7 @@ import { products } from '../src/entities/product/model/catalog.ts'
 import type { Product } from '../src/entities/product/model/types.ts'
 import { COUNTRIES, type CountryCode } from '../src/entities/order/model/countries.ts'
 import type { OrderPayment, OrderRequestParsed } from '../src/entities/order/model/schema.ts'
-import { orderTotals, type OrderTotals } from '../src/entities/order/model/pricing.ts'
+import { codFeeFor, codFeePerUnit, orderTotals, type OrderTotals } from '../src/entities/order/model/pricing.ts'
 import { site } from '../src/shared/config/site.ts'
 import type { CdekPackage, CdekPoint, CdekQuote } from './cdek.ts'
 import { codAmounts } from './currency.ts'
@@ -155,6 +155,22 @@ function orderNumber(now = new Date()): string {
 }
 
 /** Как платит покупатель: Беларусь — переводом до отправки, Казахстан — при получении в тенге, Россия — при получении в рублях. */
+/**
+ * Вещи с ценой к оплате при получении: цена + комиссия за наложенный платёж (codFeePerUnit) — при оплате при получении;
+ * при предоплате (Беларусь) — без комиссии.
+ */
+export function codItems<T extends { price: number; qty: number }>(items: T[], country: CountryCode): T[] {
+  if (COUNTRIES[country].payment !== 'cod') return items
+  return items.map((i) => ({ ...i, price: i.price + codFeePerUnit(i.price, site.shipping.codCommissionPercent) }))
+}
+
+/** Итог заказа для страны: с комиссией за наложенный платёж, если оплата при получении. */
+export function totalsFor(country: CountryCode, items: { price: number; qty: number }[], delivery: number): OrderTotals {
+  const goods = items.reduce((sum, i) => sum + i.price * i.qty, 0)
+  const codFee = COUNTRIES[country].payment === 'cod' ? codFeeFor(items, site.shipping.codCommissionPercent) : 0
+  return orderTotals(goods, delivery, site.shipping.prepaymentAmount, codFee)
+}
+
 export function orderPayment(
   country: CountryCode,
   items: { price: number; qty: number }[],
@@ -162,7 +178,7 @@ export function orderPayment(
   kztRate?: number,
 ): OrderPayment & { rate?: number } {
   if (COUNTRIES[country].payment === 'prepay') return { method: 'prepay', currency: 'RUB', amount: totals.total }
-  if (kztRate) return { method: 'cod', currency: 'KZT', amount: codAmounts(items, totals.delivery, kztRate).total, rate: kztRate }
+  if (kztRate) return { method: 'cod', currency: 'KZT', amount: codAmounts(codItems(items, country), totals.delivery, kztRate).total, rate: kztRate }
   return { method: 'cod', currency: 'RUB', amount: totals.payOnPickup }
 }
 
@@ -176,11 +192,7 @@ export function createOrder(
   now = new Date(),
 ): Order {
   const at = now.toISOString()
-  const totals = orderTotals(
-    items.reduce((sum, i) => sum + i.price * i.qty, 0),
-    (delivery.quote?.sum ?? 0) + (delivery.tryOn?.fee ?? 0),
-    site.shipping.prepaymentAmount,
-  )
+  const totals = totalsFor(input.country, items, (delivery.quote?.sum ?? 0) + (delivery.tryOn?.fee ?? 0))
   const payment = orderPayment(input.country, items, totals, kztRate)
   return {
     number: orderNumber(now),
