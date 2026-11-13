@@ -108,14 +108,16 @@ export function createApi(platform: ApiPlatform): Hono {
   }
 
   /**
-   * Доставка посылки из этих вещей в город — тариф СДЭК с наценкой deliveryMarkupPercent (вверх до рубля).
+   * Доставка посылки из этих вещей в город — тариф СДЭК с наценкой deliveryMarkupPercent (вверх до рубля)
+   * и резервом на возвраты returnReserve.
    * Ключ кеша — состав посылки, а не порядок позиций.
    */
   const quoteFor = async (lines: { product: (typeof products)[number]; qty: number }[], toCity: number): Promise<CdekQuote> => {
     const from = await senderCity()
     const key = lines.map((l) => `${l.product.id}*${l.qty}`).sort().join(',')
     const quote = await quoteCache(`${key}:${toCity}`, () => cdek!.quote(from, toCity, packageFor(lines)))
-    return { ...quote, sum: Math.ceil((quote.sum * (100 + site.shipping.deliveryMarkupPercent)) / 100) }
+    const { deliveryMarkupPercent, returnReserve } = site.shipping
+    return { ...quote, sum: Math.ceil((quote.sum * (100 + deliveryMarkupPercent)) / 100) + returnReserve }
   }
 
   app.use('*', async (c, next) => {
