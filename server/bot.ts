@@ -65,8 +65,11 @@ function stockCard(product: Product, left: Record<string, number>, waiting: Reco
   const tracked = articles.filter((a) => a.sku in left)
   const lines = [`<b>${escapeHtml(product.name)}</b>`]
   if (!tracked.length) lines.push(`Остаток не ведётся — продаётся без ограничений. Чтобы вести: «${escapeHtml(product.name)}${product.sizes.length > 1 ? ' M' : ''} 10».`)
+  // Сколько ждут — в тексте, а не на кнопке: в ряду из трёх кнопок на телефоне подпись обрезается до «S: 0 шт. · ж…».
+  const waited = articles.filter((a) => waiting[a.sku])
+  if (waited.length) lines.push(`🔔 Ждут: ${waited.map((a) => `${sizeLabel(a.size)} — ${waiting[a.sku]}`).join(', ')}`)
   const keyboard: InlineKeyboard = tracked.map((a) => [
-    { text: `${sizeLabel(a.size)}: ${left[a.sku]} шт.${waiting[a.sku] ? ` · ждут ${waiting[a.sku]}` : ''}`, callback_data: 'n' },
+    { text: `${sizeLabel(a.size)}: ${left[a.sku]} шт.`, callback_data: 'n' },
     { text: '−1', callback_data: `d:${a.sku}:-1` },
     { text: '+1', callback_data: `d:${a.sku}:1` },
   ])
@@ -233,7 +236,15 @@ export async function handleBotUpdate(raw: unknown, p: BotPlatform): Promise<voi
     const before = (await p.stock())[article.sku]
     const now = await p.setStock(article.sku, { delta: Number(delta[2]) })
     const notified = await notifyWaiters(p, article, before, now)
-    await setKeyboard(stockCard(article.product, await p.stock(), (await p.waitlist?.counts()) ?? {}).keyboard)
+    // Текст тоже обновляем: после «+1» ждавшим ушло уведомление, и строка «Ждут» меняется.
+    const card = stockCard(article.product, await p.stock(), (await p.waitlist?.counts()) ?? {})
+    await call('editMessageText', {
+      chat_id: chatId,
+      message_id: messageId,
+      text: card.text,
+      parse_mode: 'HTML',
+      reply_markup: { inline_keyboard: card.keyboard },
+    }).catch(() => setKeyboard(card.keyboard))
     return answer(`${sizeLabel(article.size)}: ${now} шт.${notified ? ` · сообщил ждавшим: ${notified}` : ''}`)
   }
 

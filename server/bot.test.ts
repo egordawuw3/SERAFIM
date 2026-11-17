@@ -77,7 +77,7 @@ describe('bot: stock', () => {
     const p = platform()
     await handleBotUpdate(press(`d:${ONLY_WAY_M}:-1`), p)
     expect((await p.stock())[ONLY_WAY_M]).toBe(6)
-    const edit = calls.find((c) => c.method === 'editMessageReplyMarkup')!
+    const edit = calls.find((c) => c.method === 'editMessageText')!
     expect(JSON.stringify(edit.body)).toContain('M: 6 шт.')
   })
 
@@ -145,7 +145,7 @@ describe('bot: waitlist', () => {
     // Продавец видит, сколько ждут.
     calls = []
     await handleBotUpdate(message('/stock'), p)
-    expect(JSON.stringify(calls)).toContain('M: 0 шт. · ждут 2')
+    expect(sent().find((t) => t.includes('The only way'))).toContain('🔔 Ждут: M — 2')
 
     calls = []
     await handleBotUpdate(message('The only way M 3'), p)
