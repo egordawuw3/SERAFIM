@@ -69,7 +69,8 @@ function stockCard(product: Product, left: Record<string, number>, waiting: Reco
   const waited = articles.filter((a) => waiting[a.sku])
   if (waited.length) lines.push(`🔔 Ждут: ${waited.map((a) => `${sizeLabel(a.size)} — ${waiting[a.sku]}`).join(', ')}`)
   const keyboard: InlineKeyboard = tracked.map((a) => [
-    { text: `${sizeLabel(a.size)}: ${left[a.sku]} шт.`, callback_data: 'n' },
+    // У вещи без размеров («единый размер») — только число: длинная подпись на кнопке обрезается.
+    { text: product.sizes.length > 1 ? `${sizeLabel(a.size)}: ${left[a.sku]} шт.` : `${left[a.sku]} шт.`, callback_data: 'n' },
     { text: '−1', callback_data: `d:${a.sku}:-1` },
     { text: '+1', callback_data: `d:${a.sku}:1` },
   ])

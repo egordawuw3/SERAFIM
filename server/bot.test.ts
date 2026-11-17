@@ -158,6 +158,12 @@ describe('bot: waitlist', () => {
     expect(await p.waitlist!.counts()).toEqual({})
   })
 
+  it('one-size item shows just the count on the button', async () => {
+    await handleBotUpdate(message('/stock'), platform({ 'SRF/BP/JESUS/BLACK/ONE SIZE': 3 }))
+    const card = calls.find((c) => String(c.body.text).includes('Рюкзак'))!
+    expect(JSON.stringify(card.body.reply_markup)).toContain('"text":"3 шт."')
+  })
+
   it('a size that is in stock is not subscribed to — the buyer gets a link instead', async () => {
     const p = platform({ [ONLY_WAY_M]: 2 })
     await handleBotUpdate(message(START, 501), p)
